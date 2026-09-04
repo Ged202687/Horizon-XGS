@@ -8,8 +8,9 @@ import { supabase } from '../supabaseClient'
  *  - "Absence injustifiée" : agent planifié (heure_debut non NULL) mais aucun "en_prod" détecté sur toute la plage
  *  - "Absence justifiée"   : absence injustifiée requalifiée manuellement par un admin/super admin (motif + traçabilité)
  *
- * NB — les noms de colonnes ci-dessous (profils.nom, profils.role, profils.equipe_id, etc.) sont des HYPOTHÈSES
- * à vérifier/adapter contre le schéma réel de la table public.profils avant la mise en prod.
+ * NB — le schéma réel de public.profils a été vérifié : identité en un seul champ `nom`
+ * (pas de `prenom` séparé), rôle en texte libre (`agent`, `coach`, `superviseur`, `admin`,
+ * `super_admin`), `equipe_id` / `superviseur_id` / `admin_id` en uuid.
  */
 
 const TOLERANCE_MINUTES = 5
@@ -29,7 +30,7 @@ export async function getPlanningsForDate(date) {
     .from('plannings')
     .select(`
       id, agent_id, date, heure_debut, heure_fin,
-      profils:agent_id ( id, nom, prenom, login, equipe_id,
+      profils:agent_id ( id, nom, login, equipe_id,
         equipes:equipe_id ( id, nom, coach_id ) )
     `)
     .eq('date', date)
@@ -89,7 +90,7 @@ export async function getDailyView(date) {
       const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd)
       return {
         agentId: p.agent_id,
-        nom: `${p.profils?.prenom ?? ''} ${p.profils?.nom ?? ''}`.trim(),
+        nom: p.profils?.nom ?? '',
         equipe: p.profils?.equipes?.nom ?? null,
         heurePrevue: p.heure_debut,
         heureReelle,
@@ -162,7 +163,7 @@ export async function justifyAbsence({ statutJourId, motif, commentaire, userId 
 export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('agent_id, date, statut, profils:agent_id ( nom, prenom, equipe_id )')
+    .select('agent_id, date, statut, profils:agent_id ( nom, equipe_id )')
     .eq('statut', 'retard')
     .gte('date', weekStartDate)
     .lte('date', weekEndDate)
@@ -171,7 +172,7 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
 
   const byAgent = {}
   for (const row of data) {
-    byAgent[row.agent_id] ??= { agentId: row.agent_id, nom: `${row.profils?.prenom ?? ''} ${row.profils?.nom ?? ''}`.trim(), dates: [] }
+    byAgent[row.agent_id] ??= { agentId: row.agent_id, nom: row.profils?.nom ?? '', dates: [] }
     byAgent[row.agent_id].dates.push(row.date)
   }
   return Object.values(byAgent).map((a) => ({ ...a, total: a.dates.length, seuilDepasse: a.dates.length > 3 }))
@@ -183,7 +184,7 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
 export async function getMonthlyReport(monthStartDate, monthEndDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('agent_id, statut, profils:agent_id ( nom, prenom, equipe_id, equipes:equipe_id ( nom ) )')
+    .select('agent_id, statut, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
     .gte('date', monthStartDate)
     .lte('date', monthEndDate)
 
@@ -194,7 +195,7 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
     const id = row.agent_id
     byAgent[id] ??= {
       agentId: id,
-      nom: `${row.profils?.prenom ?? ''} ${row.profils?.nom ?? ''}`.trim(),
+      nom: row.profils?.nom ?? '',
       equipe: row.profils?.equipes?.nom ?? null,
       present: 0, retard: 0, absentInjustifie: 0, absentJustifie: 0, total: 0,
     }
@@ -217,7 +218,7 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
 export async function getNotifications(userId) {
   const { data, error } = await supabase
     .from('assiduite_notifications')
-    .select('id, type, agent_id, date_reference, lu, created_at, profils:agent_id ( nom, prenom )')
+    .select('id, type, agent_id, date_reference, lu, created_at, profils:agent_id ( nom )')
     .eq('destinataire_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)
@@ -246,7 +247,7 @@ export async function getAgentDayStatuses(agentId, startDate, endDate) {
 export async function getAgentProfile(agentId) {
   const { data, error } = await supabase
     .from('profils')
-    .select('id, nom, prenom, equipe_id, equipes:equipe_id ( id, nom, coach_id )')
+    .select('id, nom, equipe_id, equipes:equipe_id ( id, nom, coach_id )')
     .eq('id', agentId)
     .single()
 

@@ -48,10 +48,10 @@ export default function AgentDetail() {
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
               <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 19 }}>
-                {`${profile.prenom?.[0] ?? ''}${profile.nom?.[0] ?? ''}`.toUpperCase()}
+                {profile.nom.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
               </div>
               <div>
-                <h1 style={{ fontSize: 20, marginBottom: 3 }}>{profile.prenom} {profile.nom}</h1>
+                <h1 style={{ fontSize: 20, marginBottom: 3 }}>{profile.nom}</h1>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{profile.equipes?.nom}</div>
               </div>
             </div>

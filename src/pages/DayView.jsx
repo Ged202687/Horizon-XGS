@@ -40,7 +40,7 @@ export default function DayView() {
   return (
     <>
       <Header
-        title={`Bonjour ${profil?.prenom ?? ''} 👋`}
+        title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''} 👋`}
         subtitle={scopeTeam ? `Équipe ${scopeTeam}` : `${visibleRows.length} agents planifiés aujourd'hui`}
       />
       <div className="content">

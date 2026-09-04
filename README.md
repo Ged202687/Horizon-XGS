@@ -18,29 +18,37 @@ npm run dev
 Ce scaffold pose la structure et la logique de requêtes (`src/lib/attendance.js`), mais
 plusieurs points doivent être vérifiés/complétés avant mise en production :
 
-- **Schéma `public.profils`** : les colonnes `role`, `equipe_id`, `auth_id`, `nom`, `prenom`
-  utilisées dans `AuthContext.jsx` et `attendance.js` sont des hypothèses — à faire correspondre
-  au schéma réel (cf. table déjà utilisée par Auréo/Méridien).
-- **Nouvelles tables Supabase** à créer (cf. cadrage) :
+- **Schéma `public.profils`** — confirmé :
+  - `id` (uuid), `matricule`, `nom` (nom complet en un seul champ, pas de `prenom` séparé),
+    `login`, `role` (text : `agent`, `coach`, `super_admin`, probablement aussi `superviseur`
+    et `admin`), `actif`, `equipe_id` → `equipes`, `superviseur_id`, `admin_id`, `created_at`,
+    `doit_changer_mdp`.
+- **Authentification** — résolue en clonant le repo GitHub d'Auréo (`Ged202687/aureo-app`) :
+  Auréo n'utilise pas le SDK `@supabase/supabase-js` pour l'auth mais appelle directement
+  l'API GoTrue en REST. Le flux exact, reproduit dans `AuthContext.jsx` :
+  1. RPC publique **`email_from_login(p_login)`** — résout le login saisi (ex. `s.sery`) en
+     email interne, appelée avec le rôle anonyme (donc accessible avant connexion).
+  2. `POST auth/v1/token?grant_type=password` avec cet email — authentification classique.
+  3. **`profils.id = auth.users.id`** (confirmé dans le code source d'Auréo) — le profil est
+     donc récupéré directement par l'id de l'utilisateur authentifié.
+  - Rôles confirmés (texte libre dans `profils.role`) : `super_admin`, `admin`, `superviseur`,
+    `coach`, `agent`.
+- **Nouvelles tables Supabase** à créer (cf. cadrage) — **SQL prêt à l'emploi dans
+  `supabase/sql/`** (voir `supabase/sql/README.md` pour l'ordre d'exécution) :
   - `assiduite_statuts_jour` (agent_id, planning_id, date, heure_prevue, heure_reelle, statut,
     motif_justification, commentaire_justification, justifie_par, justifie_le, created_at)
   - `assiduite_notifications` (type, agent_id, destinataire_id, date_reference, lu, created_at)
 - **RLS (Row Level Security)** sur ces deux tables : lecture limitée à l'équipe pour
   coach/superviseur, écriture réservée à admin/super_admin sur `assiduite_statuts_jour`.
-- **3 tâches planifiées** (Supabase Edge Functions + `pg_cron`, ou Scheduled Triggers Supabase) :
-  - `horizon-check-absences-10h` — 10h00 GMT, quotidien
-  - `horizon-calcul-jour` — 19h00 GMT, quotidien
-  - `horizon-check-retards-semaine` — lundi 06h00 GMT, hebdomadaire
-
-  La requête SQL de référence pour le calcul quotidien est documentée en commentaire dans
-  `src/lib/attendance.js` (fonction `getDailyView`) — à convertir en fonction RPC Postgres
-  appelée par les Edge Functions plutôt que la version client (boucle) utilisée ici pour le
-  scaffold.
+  **Déjà écrit dans `supabase/sql/002_rls.sql`.**
+- **3 tâches planifiées**, implémentées en SQL/pg_cron (cohérent avec le style Auréo, tout en
+  RPC Postgres plutôt qu'en Edge Functions) — **déjà écrites dans `supabase/sql/003_functions.sql`
+  et `supabase/sql/004_cron.sql`** :
+  - `horizon_check_absences_10h()` — 10h00 GMT, quotidien
+  - `horizon_calcul_jour()` — 19h00 GMT, quotidien
+  - `horizon_check_retards_semaine()` — lundi 06h00 GMT, hebdomadaire
 - **Export PDF / Excel** de l'écran Mois (`src/pages/MonthView.jsx`) : non implémenté, prévoir
   une librairie (ex. `jspdf` pour le PDF, `xlsx`/SheetJS pour Excel).
-- **Connexion** : `AuthContext.signIn` suppose une auth Supabase par email — à adapter si
-  Auréo/Méridien utilisent un identifiant `login` différent de l'email (résolution login → email,
-  ou fonction d'auth custom).
 
 ## 3. Déploiement — GitHub → Cloudflare Pages
 

@@ -22,7 +22,7 @@ const LogoSun = () => (
 
 export default function Header({ title, subtitle }) {
   const { profil, signOut } = useAuth()
-  const initials = profil ? `${profil.prenom?.[0] ?? ''}${profil.nom?.[0] ?? ''}`.toUpperCase() : '—'
+  const initials = profil ? profil.nom.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() : '—'
 
   return (
     <div className="header">
