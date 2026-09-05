@@ -1,12 +1,49 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
-import { getDailyView, justifyAbsence } from '../lib/attendance'
+import {
+  getDailyView,
+  getDailyRetardTrend,
+  getMonthRetardTotal,
+  getWeeklyLateCounts,
+  justifyAbsence,
+} from '../lib/attendance'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
+}
+function currentMonthBounds() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
+}
+function currentWeekBounds() {
+  const now = new Date()
+  const day = now.getDay() || 7
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - day + 1)
+  const friday = new Date(monday)
+  friday.setDate(monday.getDate() + 4)
+  return [monday.toISOString().slice(0, 10), friday.toISOString().slice(0, 10)]
+}
+
+function Sparkline({ series }) {
+  const max = Math.max(...series.map((s) => s.count), 1)
+  return (
+    <div className="spark">
+      {series.map((s, i) => (
+        <div
+          key={s.date}
+          className={i === series.length - 1 ? 'hi' : ''}
+          style={{ height: `${Math.max((s.count / max) * 100, 6)}%` }}
+          title={`${s.date} : ${s.count}`}
+        />
+      ))}
+    </div>
+  )
 }
 
 export default function DayView() {
@@ -14,20 +51,43 @@ export default function DayView() {
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [teamFilter, setTeamFilter] = useState('Toutes')
+  const [monthRetards, setMonthRetards] = useState(0)
+  const [retardTrend, setRetardTrend] = useState([])
+  const [agentsASurveiller, setAgentsASurveiller] = useState(0)
+
   const scopeTeam = profil?.role === 'coach' || profil?.role === 'superviseur' ? profil?.equipes?.nom : null
 
   useEffect(() => {
     getDailyView(todayISO())
       .then(setRows)
       .finally(() => setLoading(false))
+
+    const [monthStart, monthEnd] = currentMonthBounds()
+    getMonthRetardTotal(monthStart, monthEnd).then(setMonthRetards)
+    getDailyRetardTrend(10).then(setRetardTrend)
+
+    const [weekStart, weekEnd] = currentWeekBounds()
+    getWeeklyLateCounts(weekStart, weekEnd).then((agents) =>
+      setAgentsASurveiller(agents.filter((a) => a.seuilDepasse).length)
+    )
   }, [])
 
-  const visibleRows = scopeTeam ? rows.filter((r) => r.equipe === scopeTeam) : rows
+  const scopedRows = scopeTeam ? rows.filter((r) => r.equipe === scopeTeam) : rows
+  const teams = useMemo(() => ['Toutes', ...new Set(scopedRows.map((r) => r.equipe).filter(Boolean))], [scopedRows])
+  const visibleRows = teamFilter === 'Toutes' ? scopedRows : scopedRows.filter((r) => r.equipe === teamFilter)
+
   const stats = {
     present: visibleRows.filter((r) => r.statut === 'present').length,
     retard: visibleRows.filter((r) => r.statut === 'retard').length,
     absentInj: visibleRows.filter((r) => r.statut === 'absent_injustifie').length,
     absentJust: visibleRows.filter((r) => r.statut === 'absent_justifie').length,
+  }
+  const total = visibleRows.length || 1
+  const pctPresent = Math.round((stats.present / total) * 100)
+  const pctRetard = Math.round((stats.retard / total) * 100)
+  const donutStyle = {
+    background: `conic-gradient(var(--sage) 0% ${pctPresent}%, var(--amber) ${pctPresent}% ${pctPresent + pctRetard}%, var(--brick) ${pctPresent + pctRetard}% 100%)`,
   }
 
   async function handleJustify(row) {
@@ -41,7 +101,7 @@ export default function DayView() {
     <>
       <Header
         title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''} 👋`}
-        subtitle={scopeTeam ? `Équipe ${scopeTeam}` : `${visibleRows.length} agents planifiés aujourd'hui`}
+        subtitle={scopeTeam ? `Équipe ${scopeTeam}` : `${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — ${visibleRows.length} agents planifiés aujourd'hui`}
       />
       <div className="content">
         {scopeTeam && (
@@ -49,23 +109,46 @@ export default function DayView() {
         )}
 
         <div className="bento">
-          <div className="surface">
-            <div className="kpi-label">Présents</div>
-            <div className="kpi-value" style={{ color: 'var(--sage)' }}>{stats.present}</div>
+          <div className="surface hero-kpi">
+            <div className="donut" style={donutStyle}>
+              <div className="donut-inner">
+                <div className="n">{Math.round((stats.present / total) * 100)}%</div>
+                <div className="l">PRÉSENCE</div>
+              </div>
+            </div>
+            <div className="hero-legend">
+              <div className="legend-row"><span className="sw" style={{ background: 'var(--sage)' }} />Présents<b>{stats.present}</b></div>
+              <div className="legend-row"><span className="sw" style={{ background: 'var(--amber)' }} />Retards<b>{stats.retard}</b></div>
+              <div className="legend-row"><span className="sw" style={{ background: 'var(--brick)' }} />Absences inj.<b>{stats.absentInj}</b></div>
+              <div className="legend-row"><span className="sw" style={{ background: 'var(--slate)' }} />Absences just.<b>{stats.absentJust}</b></div>
+            </div>
           </div>
-          <div className="surface">
-            <div className="kpi-label">Retards</div>
-            <div className="kpi-value" style={{ color: 'var(--amber)' }}>{stats.retard}</div>
+
+          <div className="surface kpi-small">
+            <div className="kpi-label">Retards ce mois</div>
+            <div className="kpi-value">{monthRetards}</div>
+            {retardTrend.length > 0 && <Sparkline series={retardTrend} />}
           </div>
-          <div className="surface">
-            <div className="kpi-label">Absences injustifiées</div>
-            <div className="kpi-value" style={{ color: 'var(--brick)' }}>{stats.absentInj}</div>
+
+          <div className="surface kpi-small">
+            <div className="kpi-label">Agents à surveiller</div>
+            <div className="kpi-value">{agentsASurveiller}</div>
+            <div className="kpi-trend down">&gt; 3 retards cette semaine</div>
           </div>
         </div>
 
         <div className="surface full">
           <div className="panel-head">
             <h2>Agents planifiés aujourd'hui</h2>
+            {teams.length > 1 && (
+              <div className="pill-row">
+                {teams.map((t) => (
+                  <div key={t} className={`pill${teamFilter === t ? ' on' : ''}`} onClick={() => setTeamFilter(t)}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>

@@ -25,12 +25,23 @@ function toMinutes(hhmmss) {
  * Récupère les plannings du jour (agents effectivement planifiés, heure_debut non NULL)
  * avec l'identité de l'agent et son équipe.
  */
+/**
+ * Récupère les plannings du jour (agents effectivement planifiés, heure_debut non NULL)
+ * avec l'identité de l'agent et son équipe.
+ *
+ * IMPORTANT : plannings.agent_id référence public.profils_planning (la table d'identité
+ * propre à Méridien : nom_complet, matricule, equipe_id, superviseur_id — PAS public.profils
+ * d'Auréo directement, même si les deux partagent probablement le même id). Confirmé en
+ * production : joindre "profils:agent_id(nom, ...)" échoue avec
+ * "column profils_planning_1.nom does not exist", PostgREST résolvant l'alias vers la vraie
+ * cible de la contrainte de clé étrangère (profils_planning), pas vers le nom de l'alias choisi.
+ */
 export async function getPlanningsForDate(date) {
   const { data, error } = await supabase
     .from('plannings')
     .select(`
       id, agent_id, date, heure_debut, heure_fin,
-      profils:agent_id ( id, nom, login, equipe_id,
+      profils_planning:agent_id ( id, nom_complet, equipe_id,
         equipes:equipe_id ( id, nom, coach_id ) )
     `)
     .eq('date', date)
@@ -90,8 +101,8 @@ export async function getDailyView(date) {
       const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd)
       return {
         agentId: p.agent_id,
-        nom: p.profils?.nom ?? '',
-        equipe: p.profils?.equipes?.nom ?? null,
+        nom: p.profils_planning?.nom_complet ?? '',
+        equipe: p.profils_planning?.equipes?.nom ?? null,
         heurePrevue: p.heure_debut,
         heureReelle,
         statut,
@@ -231,6 +242,55 @@ export async function getNotifications(userId) {
  * Détail jour par jour d'un agent sur une période — utilisé par la fiche agent
  * (calendrier + tableau d'historique).
  */
+/**
+ * Nombre total de statuts "retard" sur une période (mois en cours) — carte KPI de la vue du jour.
+ * Le filtrage par équipe pour coach/superviseur est déjà appliqué automatiquement par les
+ * policies RLS sur assiduite_statuts_jour — pas besoin de le refaire ici côté client.
+ */
+export async function getMonthRetardTotal(monthStartDate, monthEndDate) {
+  const { count, error } = await supabase
+    .from('assiduite_statuts_jour')
+    .select('id', { count: 'exact', head: true })
+    .eq('statut', 'retard')
+    .gte('date', monthStartDate)
+    .lte('date', monthEndDate)
+
+  if (error) throw error
+  return count ?? 0
+}
+
+/**
+ * Nombre de retards par jour sur les N derniers jours — alimente le sparkline de la vue du jour.
+ */
+export async function getDailyRetardTrend(days = 10) {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - (days - 1))
+  const startDate = start.toISOString().slice(0, 10)
+  const endDate = end.toISOString().slice(0, 10)
+
+  const { data, error } = await supabase
+    .from('assiduite_statuts_jour')
+    .select('date, statut')
+    .eq('statut', 'retard')
+    .gte('date', startDate)
+    .lte('date', endDate)
+
+  if (error) throw error
+
+  const byDate = {}
+  for (const row of data) byDate[row.date] = (byDate[row.date] ?? 0) + 1
+
+  const series = []
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    const key = d.toISOString().slice(0, 10)
+    series.push({ date: key, count: byDate[key] ?? 0 })
+  }
+  return series
+}
+
 export async function getAgentDayStatuses(agentId, startDate, endDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
