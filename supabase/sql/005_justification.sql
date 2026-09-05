@@ -10,6 +10,11 @@
 -- Cette fonction couvre les deux cas (ligne déjà présente ou non) via un upsert exécuté en
 -- SECURITY DEFINER (contourne RLS comme les autres fonctions métier), en vérifiant elle-même le
 -- rôle de l'appelant.
+--
+-- IMPORTANT (sécurité) : coalesce(horizon_my_role(), '') — un appel non authentifié (ou dont le
+-- rôle ne se résout pas) donne horizon_my_role() = NULL ; "NULL not in (...)" s'évalue à NULL,
+-- que PL/pgSQL traite comme faux dans un IF (l'exception ne serait alors jamais levée). Le
+-- coalesce force une valeur non NULL pour que la vérification rejette bien ce cas.
 create or replace function public.horizon_justifier_absence(
   p_agent_id uuid,
   p_planning_id uuid,
@@ -25,7 +30,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if horizon_my_role() not in ('admin', 'super_admin') then
+  if coalesce(horizon_my_role(), '') not in ('admin', 'super_admin') then
     raise exception 'Non autorisé';
   end if;
 
@@ -44,6 +49,11 @@ begin
 end;
 $$;
 
+-- Retire le droit d'exécution accordé par défaut à PUBLIC (comportement Postgres standard pour
+-- toute nouvelle fonction) avant de l'accorder explicitement, et seulement aux utilisateurs
+-- authentifiés — surtout pas à `anon`, qui n'a pas de compte du tout.
+revoke execute on function public.horizon_justifier_absence(uuid, uuid, date, time, timestamptz, text, text)
+  from public;
 grant execute on function public.horizon_justifier_absence(uuid, uuid, date, time, timestamptz, text, text)
   to authenticated;
 
