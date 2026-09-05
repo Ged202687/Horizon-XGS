@@ -180,7 +180,7 @@ export async function justifyAbsence({ statutJourId, motif, commentaire, userId 
 export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('agent_id, date, statut, profils:agent_id ( nom, equipe_id )')
+    .select('agent_id, date, statut, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
     .eq('statut', 'retard')
     .gte('date', weekStartDate)
     .lte('date', weekEndDate)
@@ -193,7 +193,7 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
   const byAgent = {}
   for (const row of data) {
     if (includesToday && row.date === today) continue
-    byAgent[row.agent_id] ??= { agentId: row.agent_id, nom: row.profils?.nom ?? '', dates: [] }
+    byAgent[row.agent_id] ??= { agentId: row.agent_id, nom: row.profils?.nom ?? '', equipe: row.profils?.equipes?.nom ?? null, dates: [] }
     byAgent[row.agent_id].dates.push(row.date)
   }
 
@@ -201,7 +201,7 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
     const liveToday = await getDailyView(today)
     for (const r of liveToday) {
       if (r.statut !== 'retard') continue
-      byAgent[r.agentId] ??= { agentId: r.agentId, nom: r.nom, dates: [] }
+      byAgent[r.agentId] ??= { agentId: r.agentId, nom: r.nom, equipe: r.equipe, dates: [] }
       byAgent[r.agentId].dates.push(today)
     }
   }
@@ -290,21 +290,41 @@ export async function getNotifications(userId) {
  * Nombre total de statuts "retard" sur une période (mois en cours) — carte KPI de la vue du jour.
  * Le filtrage par équipe pour coach/superviseur est déjà appliqué automatiquement par les
  * policies RLS sur assiduite_statuts_jour — pas besoin de le refaire ici côté client.
+ *
+ * Même limitation que getMonthlyReport/getWeeklyLateCounts : la ligne du jour même n'existe
+ * dans assiduite_statuts_jour qu'après le cron horizon_calcul_jour (19h00 GMT). Si la période
+ * inclut aujourd'hui, on l'exclut du count et on ajoute sa contribution en direct via
+ * getDailyView(), pour rester cohérent avec les vues Semaine/Mois.
  */
 export async function getMonthRetardTotal(monthStartDate, monthEndDate) {
-  const { count, error } = await supabase
+  const today = new Date().toISOString().slice(0, 10)
+  const includesToday = today >= monthStartDate && today <= monthEndDate
+
+  let query = supabase
     .from('assiduite_statuts_jour')
     .select('id', { count: 'exact', head: true })
     .eq('statut', 'retard')
     .gte('date', monthStartDate)
     .lte('date', monthEndDate)
 
+  if (includesToday) query = query.neq('date', today)
+
+  const { count, error } = await query
   if (error) throw error
-  return count ?? 0
+
+  let total = count ?? 0
+  if (includesToday) {
+    const liveToday = await getDailyView(today)
+    total += liveToday.filter((r) => r.statut === 'retard').length
+  }
+  return total
 }
 
 /**
  * Nombre de retards par jour sur les N derniers jours — alimente le sparkline de la vue du jour.
+ * Le dernier point (aujourd'hui) est toujours recalculé en direct via getDailyView() : sa ligne
+ * n'existe pas encore dans assiduite_statuts_jour avant le passage du cron horizon_calcul_jour
+ * (19h00 GMT).
  */
 export async function getDailyRetardTrend(days = 10) {
   const end = new Date()
@@ -317,6 +337,7 @@ export async function getDailyRetardTrend(days = 10) {
     .from('assiduite_statuts_jour')
     .select('date, statut')
     .eq('statut', 'retard')
+    .neq('date', endDate)
     .gte('date', startDate)
     .lte('date', endDate)
 
@@ -324,6 +345,9 @@ export async function getDailyRetardTrend(days = 10) {
 
   const byDate = {}
   for (const row of data) byDate[row.date] = (byDate[row.date] ?? 0) + 1
+
+  const liveToday = await getDailyView(endDate)
+  byDate[endDate] = liveToday.filter((r) => r.statut === 'retard').length
 
   const series = []
   for (let i = 0; i < days; i++) {

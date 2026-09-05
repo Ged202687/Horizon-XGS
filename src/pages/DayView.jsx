@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
+import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
 import {
   getDailyView,
@@ -54,6 +55,7 @@ export default function DayView() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [teamFilter, setTeamFilter] = useState('Toutes')
+  const [agentFilter, setAgentFilter] = useState('')
   const [monthRetards, setMonthRetards] = useState(0)
   const [retardTrend, setRetardTrend] = useState([])
   const [agentsASurveiller, setAgentsASurveiller] = useState(0)
@@ -77,7 +79,19 @@ export default function DayView() {
 
   const scopedRows = scopeTeam ? rows.filter((r) => r.equipe === scopeTeam) : rows
   const teams = useMemo(() => ['Toutes', ...new Set(scopedRows.map((r) => r.equipe).filter(Boolean))], [scopedRows])
-  const visibleRows = teamFilter === 'Toutes' ? scopedRows : scopedRows.filter((r) => r.equipe === teamFilter)
+  const teamRows = teamFilter === 'Toutes' ? scopedRows : scopedRows.filter((r) => r.equipe === teamFilter)
+  const agentOptions = useMemo(
+    () => [...teamRows].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+    [teamRows]
+  )
+  const visibleRows = (agentFilter ? teamRows.filter((r) => r.agentId === agentFilter) : teamRows)
+    .slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+
+  function handleTeamChange(t) {
+    setTeamFilter(t)
+    setAgentFilter('')
+  }
 
   const stats = {
     present: visibleRows.filter((r) => r.statut === 'present').length,
@@ -122,15 +136,14 @@ export default function DayView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Agents planifiés aujourd'hui</h2>
-            {teams.length > 1 && (
-              <div className="pill-row">
-                {teams.map((t) => (
-                  <div key={t} className={`pill${teamFilter === t ? ' on' : ''}`} onClick={() => setTeamFilter(t)}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            )}
+            <TeamAgentFilter
+              teams={teams}
+              teamFilter={teamFilter}
+              onTeamChange={handleTeamChange}
+              agents={agentOptions}
+              agentFilter={agentFilter}
+              onAgentChange={setAgentFilter}
+            />
           </div>
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>

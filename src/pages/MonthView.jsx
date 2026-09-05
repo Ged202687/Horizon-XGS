@@ -5,6 +5,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import Header from '../components/Header'
 import Donut from '../components/Donut'
+import TeamAgentFilter from '../components/TeamAgentFilter'
 import { getMonthlyReport } from '../lib/attendance'
 
 function currentMonthBounds() {
@@ -18,6 +19,8 @@ export default function MonthView() {
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [teamFilter, setTeamFilter] = useState('Toutes')
+  const [agentFilter, setAgentFilter] = useState('')
   const [start, end] = currentMonthBounds()
 
   useEffect(() => {
@@ -26,9 +29,24 @@ export default function MonthView() {
       .finally(() => setLoading(false))
   }, [])
 
+  const teams = useMemo(() => ['Toutes', ...new Set(rows.map((r) => r.equipe).filter(Boolean))], [rows])
+  const teamRows = teamFilter === 'Toutes' ? rows : rows.filter((r) => r.equipe === teamFilter)
+  const agentOptions = useMemo(
+    () => [...teamRows].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+    [teamRows]
+  )
+  const visibleRows = (agentFilter ? teamRows.filter((r) => r.agentId === agentFilter) : teamRows)
+    .slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+
+  function handleTeamChange(t) {
+    setTeamFilter(t)
+    setAgentFilter('')
+  }
+
   const stats = useMemo(
     () =>
-      rows.reduce(
+      visibleRows.reduce(
         (acc, r) => ({
           present: acc.present + r.present,
           retard: acc.retard + r.retard,
@@ -37,11 +55,11 @@ export default function MonthView() {
         }),
         { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
       ),
-    [rows]
+    [visibleRows]
   )
 
   function exportExcel() {
-    const data = rows.map((r) => ({
+    const data = visibleRows.map((r) => ({
       Agent: r.nom,
       Équipe: r.equipe ?? '',
       'Présence (%)': r.tauxPresence,
@@ -65,7 +83,7 @@ export default function MonthView() {
     autoTable(doc, {
       startY: 28,
       head: [['Agent', 'Équipe', 'Présence', 'Retards', 'Abs. inj.', 'Abs. just.']],
-      body: rows.map((r) => [r.nom, r.equipe ?? '—', `${r.tauxPresence}%`, r.retard, r.absentInjustifie, r.absentJustifie]),
+      body: visibleRows.map((r) => [r.nom, r.equipe ?? '—', `${r.tauxPresence}%`, r.retard, r.absentInjustifie, r.absentJustifie]),
       headStyles: { fillColor: [20, 26, 61] },
     })
     doc.save(`horizon-rapport-mensuel-${start}.pdf`)
@@ -82,9 +100,19 @@ export default function MonthView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Détail par agent</h2>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={exportExcel}>↓ Excel</button>
-              <button className="btn btn-dark" onClick={exportPdf}>↓ PDF</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <TeamAgentFilter
+                teams={teams}
+                teamFilter={teamFilter}
+                onTeamChange={handleTeamChange}
+                agents={agentOptions}
+                agentFilter={agentFilter}
+                onAgentChange={setAgentFilter}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" onClick={exportExcel}>↓ Excel</button>
+                <button className="btn btn-dark" onClick={exportPdf}>↓ PDF</button>
+              </div>
             </div>
           </div>
           {loading ? (
@@ -95,7 +123,7 @@ export default function MonthView() {
                 <tr><th>Agent</th><th>Équipe</th><th>Présence</th><th>Retards</th><th>Abs. inj.</th><th>Abs. just.</th></tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {visibleRows.map((r) => (
                   <tr key={r.agentId}>
                     <td className="agent-link" onClick={() => navigate(`/agent/${r.agentId}`)}>
                       <div className="agent-cell">

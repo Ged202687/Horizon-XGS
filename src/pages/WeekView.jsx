@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Donut from '../components/Donut'
+import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
 import { getWeeklyLateCounts, getMonthlyReport } from '../lib/attendance'
 
@@ -20,8 +21,10 @@ export default function WeekView() {
   const { profil } = useAuth()
   const navigate = useNavigate()
   const [agents, setAgents] = useState([])
+  const [reportRows, setReportRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({ present: 0, retard: 0, absentInj: 0, absentJust: 0 })
+  const [teamFilter, setTeamFilter] = useState('Toutes')
+  const [agentFilter, setAgentFilter] = useState('')
   const [start, end] = currentWeekBounds()
 
   useEffect(() => {
@@ -30,21 +33,38 @@ export default function WeekView() {
       .finally(() => setLoading(false))
 
     // getMonthlyReport agrège par plage de dates arbitraire (pas seulement calendaire) —
-    // réutilisée ici pour obtenir la répartition présence/retards/absences de la semaine.
-    getMonthlyReport(start, end).then((rows) => {
-      setStats(
-        rows.reduce(
-          (acc, r) => ({
-            present: acc.present + r.present,
-            retard: acc.retard + r.retard,
-            absentInj: acc.absentInj + r.absentInjustifie,
-            absentJust: acc.absentJust + r.absentJustifie,
-          }),
-          { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
-        )
-      )
-    })
+    // réutilisée ici pour obtenir la répartition présence/retards/absences de la semaine et
+    // pour peupler le filtre équipe/agent (roster complet, pas seulement les agents en retard).
+    getMonthlyReport(start, end).then(setReportRows)
   }, [])
+
+  const teams = useMemo(() => ['Toutes', ...new Set(reportRows.map((r) => r.equipe).filter(Boolean))], [reportRows])
+  const teamReportRows = teamFilter === 'Toutes' ? reportRows : reportRows.filter((r) => r.equipe === teamFilter)
+  const agentOptions = useMemo(
+    () => [...teamReportRows].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+    [teamReportRows]
+  )
+
+  function handleTeamChange(t) {
+    setTeamFilter(t)
+    setAgentFilter('')
+  }
+
+  const scopedReportRows = agentFilter ? teamReportRows.filter((r) => r.agentId === agentFilter) : teamReportRows
+  const stats = scopedReportRows.reduce(
+    (acc, r) => ({
+      present: acc.present + r.present,
+      retard: acc.retard + r.retard,
+      absentInj: acc.absentInj + r.absentInjustifie,
+      absentJust: acc.absentJust + r.absentJustifie,
+    }),
+    { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
+  )
+
+  const teamAgents = teamFilter === 'Toutes' ? agents : agents.filter((a) => a.equipe === teamFilter)
+  const visibleAgents = (agentFilter ? teamAgents.filter((a) => a.agentId === agentFilter) : teamAgents)
+    .slice()
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
 
   return (
     <>
@@ -57,7 +77,17 @@ export default function WeekView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Retards cumulés</h2>
-            <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>seuil d'alerte : 3</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>seuil d'alerte : 3</span>
+              <TeamAgentFilter
+                teams={teams}
+                teamFilter={teamFilter}
+                onTeamChange={handleTeamChange}
+                agents={agentOptions}
+                agentFilter={agentFilter}
+                onAgentChange={setAgentFilter}
+              />
+            </div>
           </div>
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
@@ -65,7 +95,7 @@ export default function WeekView() {
             <table>
               <thead><tr><th>Agent</th><th>Retards cette semaine</th><th></th></tr></thead>
               <tbody>
-                {agents.map((a) => (
+                {visibleAgents.map((a) => (
                   <tr key={a.agentId}>
                     <td className="agent-link" onClick={() => navigate(`/agent/${a.agentId}`)}>
                       <div className="agent-cell">
