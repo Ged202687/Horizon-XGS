@@ -101,6 +101,7 @@ export async function getDailyView(date) {
       const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd)
       return {
         agentId: p.agent_id,
+        planningId: p.id,
         nom: p.profils_planning?.nom_complet ?? '',
         equipe: p.profils_planning?.equipes?.nom ?? null,
         heurePrevue: p.heure_debut,
@@ -149,21 +150,24 @@ export async function upsertStatutJour({ agentId, planningId, date, heurePrevue,
 }
 
 /**
- * Requalifie une absence injustifiée en absence justifiée (admin / super admin uniquement —
- * la restriction de rôle doit aussi être appliquée côté RLS sur la table).
+ * Requalifie une absence injustifiée en absence justifiée (admin / super admin uniquement).
+ *
+ * Passe par la RPC horizon_justifier_absence() (SECURITY DEFINER, cf. supabase/sql/005) plutôt
+ * que par un UPDATE direct : pour le jour même, avant le passage du cron horizon_calcul_jour
+ * (19h00 GMT), aucune ligne n'existe encore dans assiduite_statuts_jour (et aucune policy
+ * INSERT n'y est ouverte pour les rôles authentifiés) — la RPC gère l'upsert (insert ou update)
+ * en une seule fois, en vérifiant elle-même le rôle appelant.
  */
-export async function justifyAbsence({ statutJourId, motif, commentaire, userId }) {
-  const { error } = await supabase
-    .from('assiduite_statuts_jour')
-    .update({
-      statut: 'absent_justifie',
-      motif_justification: motif,
-      commentaire_justification: commentaire ?? null,
-      justifie_par: userId,
-      justifie_le: new Date().toISOString(),
-    })
-    .eq('id', statutJourId)
-
+export async function justifyAbsence({ agentId, planningId, date, heurePrevue, heureReelle, motif, commentaire }) {
+  const { error } = await supabase.rpc('horizon_justifier_absence', {
+    p_agent_id: agentId,
+    p_planning_id: planningId,
+    p_date: date,
+    p_heure_prevue: heurePrevue,
+    p_heure_reelle: heureReelle,
+    p_motif: motif,
+    p_commentaire: commentaire ?? null,
+  })
   if (error) throw error
 }
 
@@ -370,6 +374,80 @@ export async function getAgentDayStatuses(agentId, startDate, endDate) {
 
   if (error) throw error
   return data
+}
+
+/**
+ * Statut d'un agent pour un jour donné — session agent (lecture seule) + sélecteur de date de
+ * la vue Jour. Comme pour les autres écrans, la ligne du jour même n'existe pas encore dans
+ * assiduite_statuts_jour avant le passage du cron horizon_calcul_jour (19h00 GMT) : pour
+ * aujourd'hui, on calcule donc en direct via getDailyView() plutôt que d'interroger la table.
+ */
+export async function getAgentDailyStatus(agentId, date) {
+  const today = new Date().toISOString().slice(0, 10)
+
+  if (date === today) {
+    const rows = await getDailyView(date)
+    const row = rows.find((r) => r.agentId === agentId)
+    if (!row) return null
+    return { date, heurePrevue: row.heurePrevue, heureReelle: row.heureReelle, statut: row.statut, motifJustification: null }
+  }
+
+  const { data, error } = await supabase
+    .from('assiduite_statuts_jour')
+    .select('date, statut, heure_prevue, heure_reelle, motif_justification')
+    .eq('agent_id', agentId)
+    .eq('date', date)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+  return {
+    date: data.date,
+    heurePrevue: data.heure_prevue,
+    heureReelle: data.heure_reelle,
+    statut: data.statut,
+    motifJustification: data.motif_justification,
+  }
+}
+
+/**
+ * Statistiques + historique d'un agent sur une période — session agent (onglet "Mois"),
+ * mêmes graphes que les vues admin. Même traitement "jour en direct" que getAgentDailyStatus.
+ */
+export async function getAgentMonthlyStats(agentId, startDate, endDate) {
+  const historic = await getAgentDayStatuses(agentId, startDate, endDate)
+  const today = new Date().toISOString().slice(0, 10)
+  const includesToday = today >= startDate && today <= endDate
+
+  const days = historic
+    .filter((d) => !(includesToday && d.date === today))
+    .map((d) => ({
+      date: d.date,
+      heurePrevue: d.heure_prevue,
+      heureReelle: d.heure_reelle,
+      statut: d.statut,
+      motifJustification: d.motif_justification,
+    }))
+
+  if (includesToday) {
+    const liveToday = await getAgentDailyStatus(agentId, today)
+    if (liveToday) days.unshift(liveToday)
+  }
+
+  days.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+
+  const stats = days.reduce(
+    (acc, d) => {
+      if (d.statut === 'present') acc.present += 1
+      if (d.statut === 'retard') acc.retard += 1
+      if (d.statut === 'absent_injustifie') acc.absentInj += 1
+      if (d.statut === 'absent_justifie') acc.absentJust += 1
+      return acc
+    },
+    { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
+  )
+
+  return { stats, days }
 }
 
 export async function getAgentProfile(agentId) {

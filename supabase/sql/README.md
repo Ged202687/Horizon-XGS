@@ -11,6 +11,10 @@ Exécuter dans l'ordre, sur le projet Supabase d'Auréo/Méridien (même base) :
 4. **`004_cron.sql`** — active `pg_cron` et planifie les 3 tâches. **pg_cron tourne en UTC**,
    qui correspond directement à l'heure d'Abidjan (GMT, pas de changement d'heure) — aucune
    conversion nécessaire.
+5. **`005_justification.sql`** — RPC `horizon_justifier_absence()` (permet à un admin/super_admin
+   de justifier une absence immédiatement, même avant le passage du cron `horizon_calcul_jour`,
+   sans policy INSERT à ouvrir) + active Realtime sur `assiduite_statuts_jour` (nécessaire pour
+   que la session agent en lecture seule se mette à jour automatiquement).
 
 ## Hypothèses à vérifier avant exécution
 

@@ -54,6 +54,7 @@ export default function DayView() {
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState(todayISO())
   const [teamFilter, setTeamFilter] = useState('Toutes')
   const [agentFilter, setAgentFilter] = useState('')
   const [monthRetards, setMonthRetards] = useState(0)
@@ -61,12 +62,17 @@ export default function DayView() {
   const [agentsASurveiller, setAgentsASurveiller] = useState(0)
 
   const scopeTeam = profil?.role === 'coach' || profil?.role === 'superviseur' ? profil?.equipes?.nom : null
+  const isToday = selectedDate === todayISO()
 
   useEffect(() => {
-    getDailyView(todayISO())
+    setLoading(true)
+    getDailyView(selectedDate)
       .then(setRows)
       .finally(() => setLoading(false))
+  }, [selectedDate])
 
+  // KPI globales (mois/semaine en cours) — indépendantes de la journée consultée dans le tableau.
+  useEffect(() => {
     const [monthStart, monthEnd] = currentMonthBounds()
     getMonthRetardTotal(monthStart, monthEnd).then(setMonthRetards)
     getDailyRetardTrend(10).then(setRetardTrend)
@@ -102,20 +108,45 @@ export default function DayView() {
   async function handleJustify(row) {
     const motif = window.prompt(`Motif de justification pour ${row.nom} :`)
     if (!motif) return
-    await justifyAbsence({ statutJourId: row.statutJourId, motif, userId: profil.id })
-    setRows((prev) => prev.map((r) => (r.agentId === row.agentId ? { ...r, statut: 'absent_justifie' } : r)))
+    try {
+      await justifyAbsence({
+        agentId: row.agentId,
+        planningId: row.planningId,
+        date: selectedDate,
+        heurePrevue: row.heurePrevue,
+        heureReelle: row.heureReelle,
+        motif,
+      })
+      setRows((prev) => prev.map((r) => (r.agentId === row.agentId ? { ...r, statut: 'absent_justifie' } : r)))
+    } catch (e) {
+      window.alert(`Échec de la justification : ${e.message}`)
+    }
   }
 
   return (
     <>
       <Header
         title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''} 👋`}
-        subtitle={scopeTeam ? `Équipe ${scopeTeam}` : `${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — ${visibleRows.length} agents planifiés aujourd'hui`}
+        subtitle={
+          scopeTeam
+            ? `Équipe ${scopeTeam}`
+            : `${new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — ${visibleRows.length} agents planifiés${isToday ? " aujourd'hui" : ''}`
+        }
       />
       <div className="content">
         {scopeTeam && (
           <div className="scope-banner">🔒 Vue en lecture seule, limitée à votre équipe : {scopeTeam}</div>
         )}
+
+        <div className="field" style={{ maxWidth: 200, marginBottom: 16 }}>
+          <label>Journée consultée</label>
+          <input
+            type="date"
+            value={selectedDate}
+            max={todayISO()}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+        </div>
 
         <div className="bento">
           <Donut stats={stats} />
@@ -135,7 +166,7 @@ export default function DayView() {
 
         <div className="surface full">
           <div className="panel-head">
-            <h2>Agents planifiés aujourd'hui</h2>
+            <h2>Agents planifiés{isToday ? " aujourd'hui" : ` le ${new Date(selectedDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`}</h2>
             <TeamAgentFilter
               teams={teams}
               teamFilter={teamFilter}

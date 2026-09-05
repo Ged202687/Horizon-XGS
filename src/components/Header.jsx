@@ -23,6 +23,7 @@ const LogoSun = () => (
 export default function Header({ title, subtitle }) {
   const { profil, signOut } = useAuth()
   const initials = profil ? profil.nom.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() : '—'
+  const isAgent = profil?.role === 'agent'
 
   return (
     <div className="header">
@@ -42,9 +43,18 @@ export default function Header({ title, subtitle }) {
         <p>{subtitle}</p>
       </div>
       <div className="tabs">
-        <NavLink to="/jour" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Jour</NavLink>
-        <NavLink to="/semaine" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Semaine</NavLink>
-        <NavLink to="/mois" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Mois</NavLink>
+        {isAgent ? (
+          <>
+            <NavLink to="/mon-jour" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Jour</NavLink>
+            <NavLink to="/mon-mois" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Mois</NavLink>
+          </>
+        ) : (
+          <>
+            <NavLink to="/jour" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Jour</NavLink>
+            <NavLink to="/semaine" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Semaine</NavLink>
+            <NavLink to="/mois" className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>Mois</NavLink>
+          </>
+        )}
       </div>
     </div>
   )
