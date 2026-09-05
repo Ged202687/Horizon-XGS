@@ -3,6 +3,7 @@ const LABELS = {
   retard: 'Retard',
   absent_injustifie: 'Absence inj.',
   absent_justifie: 'Absence just.',
+  a_venir: 'Pas encore commencé',
 }
 
 export default function StatusBadge({ statut }) {

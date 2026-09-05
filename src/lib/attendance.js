@@ -74,9 +74,24 @@ export async function getFirstProdOfDay(agentId, date) {
 
 /**
  * Calcule le statut d'un agent pour un planning donné.
+ *
+ * isToday (uniquement pertinent en lecture "en direct", cf. getDailyView) : si le poste prévu
+ * n'a même pas encore commencé aujourd'hui, l'absence d'un "en_prod" ne signifie rien — l'agent
+ * n'est simplement pas encore arrivé à l'heure prévue. On renvoie alors "a_venir", un statut
+ * neutre qui ne compte ni comme absence, ni comme retard/présence, et n'affecte donc pas le
+ * taux de présence (aucune des fonctions d'agrégation ne l'incrémente dans un des 4 compteurs).
+ * Pour une date passée, le poste est forcément déjà terminé — ce cas ne s'applique pas.
  */
-export function computeStatus(heureDebutPrevue, premierEnProdISO) {
+export function computeStatus(heureDebutPrevue, premierEnProdISO, { isToday = false } = {}) {
   if (!premierEnProdISO) {
+    if (isToday) {
+      const now = new Date()
+      const nowMin = now.getHours() * 60 + now.getMinutes()
+      const prevueMin = toMinutes(heureDebutPrevue)
+      if (prevueMin !== null && nowMin < prevueMin) {
+        return { statut: 'a_venir', heureReelle: null }
+      }
+    }
     return { statut: 'absent_injustifie', heureReelle: null }
   }
   const prevueMin = toMinutes(heureDebutPrevue)
@@ -94,11 +109,12 @@ export function computeStatus(heureDebutPrevue, premierEnProdISO) {
  */
 export async function getDailyView(date) {
   const plannings = await getPlanningsForDate(date)
+  const isToday = date === new Date().toISOString().slice(0, 10)
 
   const results = await Promise.all(
     plannings.map(async (p) => {
       const premierEnProd = await getFirstProdOfDay(p.agent_id, date)
-      const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd)
+      const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd, { isToday })
       return {
         agentId: p.agent_id,
         planningId: p.id,
@@ -255,6 +271,9 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
   if (includesToday) {
     const liveToday = await getDailyView(today)
     for (const r of liveToday) {
+      // "a_venir" : le poste prévu n'a pas encore commencé aujourd'hui — ni absence, ni retard,
+      // ni présence ; ne doit pas non plus gonfler le dénominateur (total) du taux de présence.
+      if (r.statut === 'a_venir') continue
       const a = ensure(r.agentId, r.nom, r.equipe)
       a.total += 1
       if (r.statut === 'present') a.present += 1
