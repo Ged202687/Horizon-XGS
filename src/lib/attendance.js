@@ -170,6 +170,12 @@ export async function justifyAbsence({ statutJourId, motif, commentaire, userId 
 /**
  * Compte les retards de la semaine par agent — utilisé par l'écran "Semaine"
  * et par le cron horizon-check-retards-semaine.
+ *
+ * assiduite_statuts_jour n'est peuplée pour une date donnée qu'après le passage du cron
+ * horizon_calcul_jour (19h00 GMT) — si la plage couvre aujourd'hui, la ligne du jour n'existe
+ * donc pas encore la majeure partie de la journée. On exclut la ligne d'aujourd'hui si elle
+ * existe déjà (cron déjà passé) et on la recalcule systématiquement en direct via
+ * getDailyView(), pour ne jamais la compter deux fois tout en restant à jour avant 19h.
  */
 export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
   const { data, error } = await supabase
@@ -181,40 +187,78 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
 
   if (error) throw error
 
+  const today = new Date().toISOString().slice(0, 10)
+  const includesToday = today >= weekStartDate && today <= weekEndDate
+
   const byAgent = {}
   for (const row of data) {
+    if (includesToday && row.date === today) continue
     byAgent[row.agent_id] ??= { agentId: row.agent_id, nom: row.profils?.nom ?? '', dates: [] }
     byAgent[row.agent_id].dates.push(row.date)
   }
+
+  if (includesToday) {
+    const liveToday = await getDailyView(today)
+    for (const r of liveToday) {
+      if (r.statut !== 'retard') continue
+      byAgent[r.agentId] ??= { agentId: r.agentId, nom: r.nom, dates: [] }
+      byAgent[r.agentId].dates.push(today)
+    }
+  }
+
   return Object.values(byAgent).map((a) => ({ ...a, total: a.dates.length, seuilDepasse: a.dates.length > 3 }))
 }
 
 /**
- * Synthèse mensuelle par agent — écran "Mois" + export PDF/Excel.
+ * Synthèse par agent sur une plage de dates arbitraire (pas seulement calendaire — utilisée
+ * aussi bien pour la semaine que pour le mois) — écran "Mois" + export PDF/Excel, et donuts
+ * Semaine/Mois.
+ *
+ * Même limitation que getWeeklyLateCounts : assiduite_statuts_jour n'a pas encore la ligne du
+ * jour tant que le cron horizon_calcul_jour (19h00 GMT) n'est pas passé. Si la plage inclut
+ * aujourd'hui, on exclut sa ligne éventuelle et on calcule sa contribution en direct via
+ * getDailyView(), pour que Semaine/Mois reflètent la production en cours comme le fait déjà
+ * la vue Jour, sans jamais compter aujourd'hui deux fois.
  */
 export async function getMonthlyReport(monthStartDate, monthEndDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('agent_id, statut, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
+    .select('agent_id, date, statut, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
     .gte('date', monthStartDate)
     .lte('date', monthEndDate)
 
   if (error) throw error
 
+  const today = new Date().toISOString().slice(0, 10)
+  const includesToday = today >= monthStartDate && today <= monthEndDate
+
   const byAgent = {}
+  function ensure(id, nom, equipe) {
+    byAgent[id] ??= { agentId: id, nom, equipe, present: 0, retard: 0, absentInjustifie: 0, absentJustifie: 0, total: 0 }
+    return byAgent[id]
+  }
+
   for (const row of data) {
-    const id = row.agent_id
-    byAgent[id] ??= {
-      agentId: id,
-      nom: row.profils?.nom ?? '',
-      equipe: row.profils?.equipes?.nom ?? null,
-      present: 0, retard: 0, absentInjustifie: 0, absentJustifie: 0, total: 0,
+    if (includesToday && row.date === today) continue
+    const a = ensure(row.agent_id, row.profils?.nom ?? '', row.profils?.equipes?.nom ?? null)
+    a.total += 1
+    if (row.statut === 'present') a.present += 1
+    if (row.statut === 'retard') a.retard += 1
+    if (row.statut === 'absent_injustifie') a.absentInjustifie += 1
+    if (row.statut === 'absent_justifie') a.absentJustifie += 1
+  }
+
+  if (includesToday) {
+    const liveToday = await getDailyView(today)
+    for (const r of liveToday) {
+      const a = ensure(r.agentId, r.nom, r.equipe)
+      a.total += 1
+      if (r.statut === 'present') a.present += 1
+      if (r.statut === 'retard') a.retard += 1
+      if (r.statut === 'absent_injustifie') a.absentInjustifie += 1
+      // les requalifications "absent_justifie" du jour même ne sont possibles qu'une fois la
+      // ligne écrite par le cron — non représentées dans le calcul en direct.
     }
-    byAgent[id].total += 1
-    if (row.statut === 'present') byAgent[id].present += 1
-    if (row.statut === 'retard') byAgent[id].retard += 1
-    if (row.statut === 'absent_injustifie') byAgent[id].absentInjustifie += 1
-    if (row.statut === 'absent_justifie') byAgent[id].absentJustifie += 1
   }
 
   return Object.values(byAgent).map((a) => ({

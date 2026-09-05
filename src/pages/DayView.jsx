@@ -21,14 +21,15 @@ function currentMonthBounds() {
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
 }
+// Lundi → dimanche de la semaine en cours (production 7j/7, pas seulement en semaine).
 function currentWeekBounds() {
   const now = new Date()
   const day = now.getDay() || 7
   const monday = new Date(now)
   monday.setDate(now.getDate() - day + 1)
-  const friday = new Date(monday)
-  friday.setDate(monday.getDate() + 4)
-  return [monday.toISOString().slice(0, 10), friday.toISOString().slice(0, 10)]
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return [monday.toISOString().slice(0, 10), sunday.toISOString().slice(0, 10)]
 }
 
 function Sparkline({ series }) {

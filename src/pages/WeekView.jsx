@@ -5,15 +5,15 @@ import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
 import { getWeeklyLateCounts, getMonthlyReport } from '../lib/attendance'
 
-// Lundi de la semaine en cours, au format YYYY-MM-DD
+// Lundi → dimanche de la semaine en cours (production 7j/7, pas seulement en semaine).
 function currentWeekBounds() {
   const now = new Date()
   const day = now.getDay() || 7
   const monday = new Date(now)
   monday.setDate(now.getDate() - day + 1)
-  const friday = new Date(monday)
-  friday.setDate(monday.getDate() + 4)
-  return [monday.toISOString().slice(0, 10), friday.toISOString().slice(0, 10)]
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return [monday.toISOString().slice(0, 10), sunday.toISOString().slice(0, 10)]
 }
 
 export default function WeekView() {

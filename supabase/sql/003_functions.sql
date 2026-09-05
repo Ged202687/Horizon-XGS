@@ -129,6 +129,7 @@ $$;
 -- 3) horizon_check_retards_semaine — hebdomadaire, lundi 06h00 GMT
 --    Compte les statuts "retard" de la semaine écoulée (assiduite_statuts_jour, déjà calculée
 --    quotidiennement par horizon_calcul_jour) et notifie au-delà de 3.
+--    Semaine = lundi à dimanche (production 7j/7, pas seulement en semaine).
 -- ----------------------------------------------------------------------------
 create or replace function public.horizon_check_retards_semaine(
   p_week_start date default (date_trunc('week', current_date))::date
@@ -139,7 +140,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_week_end date := p_week_start + 4; -- lundi + 4 jours = vendredi
+  v_week_end date := p_week_start + 6; -- lundi + 6 jours = dimanche
   r record;
   recipient uuid;
 begin
