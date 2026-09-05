@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import Header from '../components/Header'
+import Donut from '../components/Donut'
 import { getMonthlyReport } from '../lib/attendance'
 
 function currentMonthBounds() {
@@ -22,15 +26,59 @@ export default function MonthView() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Export PDF/Excel : brancher ici une lib (ex. sheetjs pour Excel, jspdf pour PDF)
-  // en réutilisant `rows` — non implémenté dans ce scaffold de base.
-  function exportExcel() { window.alert('Export Excel — à implémenter (ex. SheetJS).') }
-  function exportPdf() { window.alert('Export PDF — à implémenter (ex. jsPDF).') }
+  const stats = useMemo(
+    () =>
+      rows.reduce(
+        (acc, r) => ({
+          present: acc.present + r.present,
+          retard: acc.retard + r.retard,
+          absentInj: acc.absentInj + r.absentInjustifie,
+          absentJust: acc.absentJust + r.absentJustifie,
+        }),
+        { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
+      ),
+    [rows]
+  )
+
+  function exportExcel() {
+    const data = rows.map((r) => ({
+      Agent: r.nom,
+      Équipe: r.equipe ?? '',
+      'Présence (%)': r.tauxPresence,
+      Retards: r.retard,
+      'Abs. injustifiées': r.absentInjustifie,
+      'Abs. justifiées': r.absentJustifie,
+    }))
+    const sheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Rapport mensuel')
+    XLSX.writeFile(workbook, `horizon-rapport-mensuel-${start}.xlsx`)
+  }
+
+  function exportPdf() {
+    const doc = new jsPDF()
+    doc.setFontSize(14)
+    doc.text('Rapport mensuel — Assiduité', 14, 16)
+    doc.setFontSize(10)
+    doc.setTextColor(120)
+    doc.text(`Période du ${start} au ${end}`, 14, 22)
+    autoTable(doc, {
+      startY: 28,
+      head: [['Agent', 'Équipe', 'Présence', 'Retards', 'Abs. inj.', 'Abs. just.']],
+      body: rows.map((r) => [r.nom, r.equipe ?? '—', `${r.tauxPresence}%`, r.retard, r.absentInjustifie, r.absentJustifie]),
+      headStyles: { fillColor: [20, 26, 61] },
+    })
+    doc.save(`horizon-rapport-mensuel-${start}.pdf`)
+  }
 
   return (
     <>
       <Header title="Rapport mensuel" subtitle="Synthèse d'assiduité par agent et par équipe" />
       <div className="content">
+        <div className="bento">
+          <Donut stats={stats} />
+        </div>
+
         <div className="surface full">
           <div className="panel-head">
             <h2>Détail par agent</h2>

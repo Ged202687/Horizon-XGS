@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
+import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
-import { getWeeklyLateCounts } from '../lib/attendance'
+import { getWeeklyLateCounts, getMonthlyReport } from '../lib/attendance'
 
 // Lundi de la semaine en cours, au format YYYY-MM-DD
 function currentWeekBounds() {
@@ -20,18 +21,39 @@ export default function WeekView() {
   const navigate = useNavigate()
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({ present: 0, retard: 0, absentInj: 0, absentJust: 0 })
   const [start, end] = currentWeekBounds()
 
   useEffect(() => {
     getWeeklyLateCounts(start, end)
       .then(setAgents)
       .finally(() => setLoading(false))
+
+    // getMonthlyReport agrège par plage de dates arbitraire (pas seulement calendaire) —
+    // réutilisée ici pour obtenir la répartition présence/retards/absences de la semaine.
+    getMonthlyReport(start, end).then((rows) => {
+      setStats(
+        rows.reduce(
+          (acc, r) => ({
+            present: acc.present + r.present,
+            retard: acc.retard + r.retard,
+            absentInj: acc.absentInj + r.absentInjustifie,
+            absentJust: acc.absentJust + r.absentJustifie,
+          }),
+          { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
+        )
+      )
+    })
   }, [])
 
   return (
     <>
       <Header title="Rapport hebdomadaire" subtitle={`Semaine du ${start} au ${end}`} />
       <div className="content">
+        <div className="bento">
+          <Donut stats={stats} />
+        </div>
+
         <div className="surface full">
           <div className="panel-head">
             <h2>Retards cumulés</h2>

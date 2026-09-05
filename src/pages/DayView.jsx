@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
+import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
 import {
   getDailyView,
@@ -83,13 +84,6 @@ export default function DayView() {
     absentInj: visibleRows.filter((r) => r.statut === 'absent_injustifie').length,
     absentJust: visibleRows.filter((r) => r.statut === 'absent_justifie').length,
   }
-  const total = visibleRows.length || 1
-  const pctPresent = Math.round((stats.present / total) * 100)
-  const pctRetard = Math.round((stats.retard / total) * 100)
-  const donutStyle = {
-    background: `conic-gradient(var(--sage) 0% ${pctPresent}%, var(--amber) ${pctPresent}% ${pctPresent + pctRetard}%, var(--brick) ${pctPresent + pctRetard}% 100%)`,
-  }
-
   async function handleJustify(row) {
     const motif = window.prompt(`Motif de justification pour ${row.nom} :`)
     if (!motif) return
@@ -109,20 +103,7 @@ export default function DayView() {
         )}
 
         <div className="bento">
-          <div className="surface hero-kpi">
-            <div className="donut" style={donutStyle}>
-              <div className="donut-inner">
-                <div className="n">{Math.round((stats.present / total) * 100)}%</div>
-                <div className="l">PRÉSENCE</div>
-              </div>
-            </div>
-            <div className="hero-legend">
-              <div className="legend-row"><span className="sw" style={{ background: 'var(--sage)' }} />Présents<b>{stats.present}</b></div>
-              <div className="legend-row"><span className="sw" style={{ background: 'var(--amber)' }} />Retards<b>{stats.retard}</b></div>
-              <div className="legend-row"><span className="sw" style={{ background: 'var(--brick)' }} />Absences inj.<b>{stats.absentInj}</b></div>
-              <div className="legend-row"><span className="sw" style={{ background: 'var(--slate)' }} />Absences just.<b>{stats.absentJust}</b></div>
-            </div>
-          </div>
+          <Donut stats={stats} />
 
           <div className="surface kpi-small">
             <div className="kpi-label">Retards ce mois</div>
