@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
 import { getAgentDailyStatus } from '../lib/attendance'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { supabase } from '../supabaseClient'
 
 function todayISO() {
@@ -25,7 +26,13 @@ export default function MyDayView() {
   useEffect(() => {
     setLoading(true)
     refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
+
+  // Rafraîchissement automatique toutes les 30s — uniquement pour la journée en cours, la seule
+  // dont l'état peut encore évoluer. Silencieux (refresh() ne touche pas l'indicateur de
+  // chargement une fois le premier chargement terminé).
+  useAutoRefresh(refresh, { enabled: date === todayISO() })
 
   // Se met à jour automatiquement si un admin/super_admin justifie une absence pendant que
   // l'agent consulte sa page (cf. supabase/sql/005 pour l'activation Realtime nécessaire).

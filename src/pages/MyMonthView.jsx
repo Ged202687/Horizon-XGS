@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
 import { getAgentMonthlyStats } from '../lib/attendance'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { supabase } from '../supabaseClient'
 
 function currentMonthBounds() {
@@ -33,6 +34,11 @@ export default function MyMonthView() {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Rafraîchissement automatique toutes les 30s — le mois en cours intègre la production du
+  // jour même. Silencieux (refresh() ne touche pas l'indicateur de chargement une fois le
+  // premier chargement terminé).
+  useAutoRefresh(refresh)
 
   // Se met à jour automatiquement si un admin/super_admin justifie une absence pendant que
   // l'agent consulte sa page (cf. supabase/sql/005 pour l'activation Realtime nécessaire).

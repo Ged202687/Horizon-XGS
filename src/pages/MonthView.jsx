@@ -7,6 +7,7 @@ import Header from '../components/Header'
 import Donut from '../components/Donut'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { getMonthlyReport } from '../lib/attendance'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 
 function currentMonthBounds() {
   const now = new Date()
@@ -23,11 +24,23 @@ export default function MonthView() {
   const [agentFilter, setAgentFilter] = useState('')
   const [start, end] = currentMonthBounds()
 
-  useEffect(() => {
-    getMonthlyReport(start, end)
+  function loadMonth(showLoading) {
+    if (showLoading) setLoading(true)
+    return getMonthlyReport(start, end)
       .then(setRows)
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (showLoading) setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    loadMonth(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Rafraîchissement automatique toutes les 30s — le mois en cours intègre la production du
+  // jour même, qui évolue en continu. Silencieux : pas de ré-affichage du spinner.
+  useAutoRefresh(() => loadMonth(false))
 
   const teams = useMemo(() => ['Toutes', ...new Set(rows.map((r) => r.equipe).filter(Boolean))], [rows])
   const teamRows = teamFilter === 'Toutes' ? rows : rows.filter((r) => r.equipe === teamFilter)

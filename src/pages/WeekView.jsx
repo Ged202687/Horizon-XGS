@@ -5,6 +5,7 @@ import Donut from '../components/Donut'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
 import { getWeeklyLateCounts, getMonthlyReport } from '../lib/attendance'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 
 // Lundi → dimanche de la semaine en cours (production 7j/7, pas seulement en semaine).
 function currentWeekBounds() {
@@ -27,16 +28,26 @@ export default function WeekView() {
   const [agentFilter, setAgentFilter] = useState('')
   const [start, end] = currentWeekBounds()
 
-  useEffect(() => {
-    getWeeklyLateCounts(start, end)
-      .then(setAgents)
-      .finally(() => setLoading(false))
+  function loadWeek(showLoading) {
+    if (showLoading) setLoading(true)
+    const pending = getWeeklyLateCounts(start, end).then(setAgents)
 
     // getMonthlyReport agrège par plage de dates arbitraire (pas seulement calendaire) —
     // réutilisée ici pour obtenir la répartition présence/retards/absences de la semaine et
     // pour peupler le filtre équipe/agent (roster complet, pas seulement les agents en retard).
     getMonthlyReport(start, end).then(setReportRows)
+
+    if (showLoading) pending.finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadWeek(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Rafraîchissement automatique toutes les 30s — la semaine en cours intègre la production du
+  // jour même, qui évolue en continu. Silencieux : pas de ré-affichage du spinner.
+  useAutoRefresh(() => loadWeek(false))
 
   const teams = useMemo(() => ['Toutes', ...new Set(reportRows.map((r) => r.equipe).filter(Boolean))], [reportRows])
   const teamReportRows = teamFilter === 'Toutes' ? reportRows : reportRows.filter((r) => r.equipe === teamFilter)

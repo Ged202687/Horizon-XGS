@@ -12,6 +12,7 @@ import {
   getWeeklyLateCounts,
   justifyAbsence,
 } from '../lib/attendance'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
@@ -64,15 +65,26 @@ export default function DayView() {
   const scopeTeam = profil?.role === 'coach' || profil?.role === 'superviseur' ? profil?.equipes?.nom : null
   const isToday = selectedDate === todayISO()
 
-  useEffect(() => {
-    setLoading(true)
-    getDailyView(selectedDate)
+  function loadRows(showLoading) {
+    if (showLoading) setLoading(true)
+    return getDailyView(selectedDate)
       .then(setRows)
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (showLoading) setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    loadRows(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate])
 
-  // KPI globales (mois/semaine en cours) — indépendantes de la journée consultée dans le tableau.
-  useEffect(() => {
+  // Rafraîchissement automatique toutes les 30s — uniquement pour la journée en cours, la seule
+  // dont l'état peut encore évoluer (un jour passé ne change plus). Silencieux : pas de
+  // ré-affichage du spinner de chargement à chaque tour.
+  useAutoRefresh(() => loadRows(false), { enabled: isToday })
+
+  function loadKpis() {
     const [monthStart, monthEnd] = currentMonthBounds()
     getMonthRetardTotal(monthStart, monthEnd).then(setMonthRetards)
     getDailyRetardTrend(10).then(setRetardTrend)
@@ -81,7 +93,15 @@ export default function DayView() {
     getWeeklyLateCounts(weekStart, weekEnd).then((agents) =>
       setAgentsASurveiller(agents.filter((a) => a.seuilDepasse).length)
     )
+  }
+
+  // KPI globales (mois/semaine en cours) — indépendantes de la journée consultée dans le tableau.
+  useEffect(() => {
+    loadKpis()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useAutoRefresh(loadKpis)
 
   const scopedRows = scopeTeam ? rows.filter((r) => r.equipe === scopeTeam) : rows
   const teams = useMemo(() => ['Toutes', ...new Set(scopedRows.map((r) => r.equipe).filter(Boolean))], [scopedRows])
