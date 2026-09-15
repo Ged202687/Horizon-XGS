@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import LogoSun from '../components/LogoSun'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -26,8 +27,9 @@ export default function Login() {
   return (
     <div className="screen">
       <div className="panel">
-        <div className="brand">
-          <div className="brand-text">Horizon</div>
+        <div className="login-brand">
+          <LogoSun />
+          <div className="login-brand-text">Horizon</div>
         </div>
         <div className="panel-hero">
           <h1>Le suivi d'assiduité de vos équipes, en un coup d'œil.</h1>

@@ -99,6 +99,10 @@ tbody tr:last-child td{border-bottom:none;}
 /* Login */
 .screen{display:flex; min-height:100vh;}
 .panel{flex:1.1; background:linear-gradient(150deg, var(--navy) 0%, var(--navy-2) 55%, #4A3A72 82%, #C98A2E 120%); color:#fff; display:flex; flex-direction:column; justify-content:space-between; padding:48px; position:relative; overflow:hidden;}
+.login-brand{display:flex; align-items:center; gap:20px; position:relative; z-index:1;}
+.login-brand::before{content:''; position:absolute; left:-30px; top:-30px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle, rgba(240,174,42,.28), transparent 70%); z-index:-1;}
+.login-brand svg{width:76px; height:76px; flex-shrink:0;}
+.login-brand-text{font-family:'Sora',sans-serif; font-size:52px; font-weight:800; letter-spacing:-1px; line-height:1;}
 .panel-hero{max-width:380px; position:relative; z-index:1;}
 .panel-hero h1{font-size:28px; margin-bottom:14px;}
 .form-side{flex:1; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:40px;}
