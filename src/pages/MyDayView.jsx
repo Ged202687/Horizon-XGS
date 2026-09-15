@@ -80,6 +80,7 @@ export default function MyDayView() {
           ) : !status ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Aucun planning ce jour-là.</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead><tr><th>Prévu</th><th>Production</th><th>Statut</th><th>Motif</th></tr></thead>
               <tbody>
@@ -93,6 +94,7 @@ export default function MyDayView() {
                 </tr>
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

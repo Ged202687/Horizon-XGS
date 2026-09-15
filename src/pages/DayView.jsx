@@ -199,6 +199,7 @@ export default function DayView() {
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr><th>Agent</th><th>Prévu</th><th>Production</th><th>Statut</th><th></th></tr>
@@ -224,6 +225,7 @@ export default function DayView() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

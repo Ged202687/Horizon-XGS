@@ -73,6 +73,7 @@ export default function AgentDetail() {
 
             <div className="surface full">
               <div className="panel-head"><h2>Historique du mois</h2></div>
+              <div className="table-scroll">
               <table>
                 <thead><tr><th>Date</th><th>Prévu</th><th>Production</th><th>Statut</th><th>Motif</th></tr></thead>
                 <tbody>
@@ -87,6 +88,7 @@ export default function AgentDetail() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </>
         )}

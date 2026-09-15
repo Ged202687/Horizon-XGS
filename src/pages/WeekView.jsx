@@ -88,7 +88,7 @@ export default function WeekView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Retards cumulés</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>seuil d'alerte : 3</span>
               <TeamAgentFilter
                 teams={teams}
@@ -103,6 +103,7 @@ export default function WeekView() {
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead><tr><th>Agent</th><th>Retards cette semaine</th><th></th></tr></thead>
               <tbody>
@@ -120,6 +121,7 @@ export default function WeekView() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

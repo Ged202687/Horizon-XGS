@@ -113,7 +113,7 @@ export default function MonthView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Détail par agent</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <TeamAgentFilter
                 teams={teams}
                 teamFilter={teamFilter}
@@ -131,6 +131,7 @@ export default function MonthView() {
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr><th>Agent</th><th>Équipe</th><th>Présence</th><th>Retards</th><th>Abs. inj.</th><th>Abs. just.</th></tr>
@@ -153,6 +154,7 @@ export default function MonthView() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

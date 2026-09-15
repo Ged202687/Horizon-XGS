@@ -70,6 +70,7 @@ export default function MyMonthView() {
           {loading ? (
             <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead><tr><th>Date</th><th>Prévu</th><th>Production</th><th>Statut</th><th>Motif</th></tr></thead>
               <tbody>
@@ -86,6 +87,7 @@ export default function MyMonthView() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
