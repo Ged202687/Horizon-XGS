@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { SOUS_PORTAIL, allerAuPortail } from '../lib/portail'
 import LogoSun from '../components/LogoSun'
 
 export default function Login() {
-  const { signIn } = useAuth()
+  const { signIn, session, loading: chargementSession } = useAuth()
   const navigate = useNavigate()
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
@@ -23,6 +24,14 @@ export default function Login() {
     }
     navigate('/jour')
   }
+
+  // Sous le portail : pas d'ecran de connexion propre a Horizon. Deja
+  // connecte, on va a l'accueil ; sinon, c'est le portail qui connecte, puis
+  // renvoie ici.
+  useEffect(() => {
+    if (SOUS_PORTAIL && !chargementSession && !session) allerAuPortail()
+  }, [chargementSession, session])
+  if (SOUS_PORTAIL) return session ? <Navigate to="/" replace /> : null
 
   return (
     <div className="screen">

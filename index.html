@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Horizon — Suivi d'assiduité</title>
+  <script>
+    // Les ressources sont construites avec des chemins relatifs. Sous le
+    // portail XGS (portail/horizon/...), ils doivent partir de /horizon/, et a
+    // l'adresse propre d'Horizon, de la racine : y compris sur une adresse
+    // profonde (/agent/12), ou un chemin relatif partirait sinon de /agent/.
+    document.write('<base href="' + (/^\/horizon(\/|$)/.test(location.pathname) ? '/horizon/' : '/') + '">');
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
