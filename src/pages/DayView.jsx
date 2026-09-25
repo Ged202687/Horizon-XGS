@@ -13,6 +13,7 @@ import {
   getWeeklyLateCounts,
   justifyAbsence,
   computeTauxPresence,
+  formatDuration,
 } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 
@@ -221,7 +222,14 @@ export default function DayView() {
                       </div>
                     </td>
                     <td className="mono">{r.heurePrevue}</td>
-                    <td className="mono">{r.heureReelle ? new Date(r.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                    <td className="mono">
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(r.tempsPresenceSecondes)}</div>
+                      {r.heureReelle && (
+                        <div style={{ fontSize: 11 }}>
+                          arrivée {new Date(r.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </td>
                     <td><StatusBadge statut={r.statut} /></td>
                     <td>
                       {r.statut === 'absent_injustifie' && canEdit && (

@@ -100,6 +100,19 @@ export function computeTauxPresence(tempsPresenceSecondes, tempsPrevuSecondes) {
 }
 
 /**
+ * Formate une durée en secondes en écriture courte "7h58" (ou "45min" sous l'heure) — utilisé
+ * pour afficher le temps réellement passé en production dans les tableaux, plutôt que la seule
+ * heure de 1er passage en_prod.
+ */
+export function formatDuration(totalSeconds) {
+  if (!totalSeconds) return '—'
+  const totalMinutes = Math.round(totalSeconds / 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return h === 0 ? `${m}min` : `${h}h${String(m).padStart(2, '0')}`
+}
+
+/**
  * Calcule le statut d'un agent pour un planning donné.
  *
  * isToday (uniquement pertinent en lecture "en direct", cf. getDailyView) : si le poste prévu

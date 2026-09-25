@@ -4,7 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
 import { useAuth } from '../context/AuthContext'
-import { getAgentDailyStatus, computeTauxPresence } from '../lib/attendance'
+import { getAgentDailyStatus, computeTauxPresence, formatDuration } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { supabase } from '../supabaseClient'
 
@@ -90,7 +90,12 @@ export default function MyDayView() {
                 <tr>
                   <td className="mono">{status.heurePrevue}</td>
                   <td className="mono">
-                    {status.heureReelle ? new Date(status.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(status.tempsPresenceSecondes)}</div>
+                    {status.heureReelle && (
+                      <div style={{ fontSize: 11 }}>
+                        arrivée {new Date(status.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
                   </td>
                   <td><StatusBadge statut={status.statut} /></td>
                   <td className="mono">{status.motifJustification ?? '—'}</td>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
-import { getAgentDayStatuses, getAgentProfile, computeTauxPresence } from '../lib/attendance'
+import { getAgentDayStatuses, getAgentProfile, computeTauxPresence, formatDuration } from '../lib/attendance'
 
 function currentMonthBounds() {
   const now = new Date()
@@ -84,7 +84,14 @@ export default function AgentDetail() {
                     <tr key={d.date}>
                       <td>{new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
                       <td className="mono">{d.heure_prevue}</td>
-                      <td className="mono">{d.heure_reelle ? new Date(d.heure_reelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                      <td className="mono">
+                        <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(d.temps_presence_secondes)}</div>
+                        {d.heure_reelle && (
+                          <div style={{ fontSize: 11 }}>
+                            arrivée {new Date(d.heure_reelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </td>
                       <td><StatusBadge statut={d.statut} /></td>
                       <td className="mono">{d.motif_justification ?? '—'}</td>
                     </tr>

@@ -4,7 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
 import { useAuth } from '../context/AuthContext'
-import { getAgentMonthlyStats } from '../lib/attendance'
+import { getAgentMonthlyStats, formatDuration } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { supabase } from '../supabaseClient'
 
@@ -83,7 +83,12 @@ export default function MyMonthView() {
                     <td>{new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
                     <td className="mono">{d.heurePrevue}</td>
                     <td className="mono">
-                      {d.heureReelle ? new Date(d.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(d.tempsPresenceSecondes)}</div>
+                      {d.heureReelle && (
+                        <div style={{ fontSize: 11 }}>
+                          arrivée {new Date(d.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
                     </td>
                     <td><StatusBadge statut={d.statut} /></td>
                     <td className="mono">{d.motifJustification ?? '—'}</td>
