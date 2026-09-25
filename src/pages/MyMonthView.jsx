@@ -18,14 +18,16 @@ export default function MyMonthView() {
   const { profil } = useAuth()
   const [start, end] = currentMonthBounds()
   const [stats, setStats] = useState({ present: 0, retard: 0, absentInj: 0, absentJust: 0 })
+  const [tauxPresence, setTauxPresence] = useState(0)
   const [days, setDays] = useState([])
   const [loading, setLoading] = useState(true)
 
   function refresh() {
     getAgentMonthlyStats(profil.id, start, end)
-      .then(({ stats, days }) => {
+      .then(({ stats, days, tauxPresence }) => {
         setStats(stats)
         setDays(days)
+        setTauxPresence(tauxPresence)
       })
       .finally(() => setLoading(false))
   }
@@ -62,7 +64,7 @@ export default function MyMonthView() {
         <div className="scope-banner">🔒 Vue en lecture seule — votre assiduité personnelle</div>
 
         <div className="bento">
-          <Donut stats={stats} />
+          <Donut stats={stats} tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

@@ -11,6 +11,10 @@ import { supabase } from '../supabaseClient'
  * NB — le schéma réel de public.profils a été vérifié : identité en un seul champ `nom`
  * (pas de `prenom` séparé), rôle en texte libre (`agent`, `coach`, `superviseur`, `admin`,
  * `super_admin`), `equipe_id` / `superviseur_id` / `admin_id` en uuid.
+ *
+ * "Taux de présence" (le pourcentage affiché dans les donuts et le rapport mensuel) ≠ le statut
+ * catégoriel ci-dessus : c'est le temps réellement passé en_prod sur la période, divisé par le
+ * temps nominal prévu au planning (heure_fin - heure_debut) — voir computeTauxPresence().
  */
 
 const TOLERANCE_MINUTES = 5
@@ -52,24 +56,47 @@ export async function getPlanningsForDate(date) {
 }
 
 /**
- * Cherche le 1er passage en statut "en_prod" d'un agent sur une date donnée.
+ * Récupère toutes les périodes "en_prod" d'un agent sur une date donnée. Sert à la fois à
+ * déterminer le 1er passage (statut présent/retard, logique inchangée) et le temps total
+ * réellement passé en production ce jour-là (nouveau taux de présence au temps réel).
  */
-export async function getFirstProdOfDay(agentId, date) {
+export async function getAgentProdPeriods(agentId, date) {
   const dayStart = `${date}T00:00:00`
   const dayEnd = `${date}T23:59:59`
 
   const { data, error } = await supabase
     .from('statuts_historique')
-    .select('debut')
+    .select('debut, fin')
     .eq('agent_id', agentId)
     .eq('statut', 'en_prod')
     .gte('debut', dayStart)
     .lte('debut', dayEnd)
     .order('debut', { ascending: true })
-    .limit(1)
 
   if (error) throw error
-  return data?.[0]?.debut ?? null
+  return data
+}
+
+/**
+ * Somme les durées de plusieurs périodes "en_prod", en secondes. Une période sans "fin"
+ * (l'agent est encore en production au moment du calcul) est bornée à maintenant.
+ */
+function sumProdSeconds(periods) {
+  const now = Date.now()
+  return periods.reduce((sum, p) => {
+    const finMs = p.fin ? new Date(p.fin).getTime() : now
+    return sum + Math.max(0, (finMs - new Date(p.debut).getTime()) / 1000)
+  }, 0)
+}
+
+/**
+ * Taux de présence au temps réel : temps effectivement passé en production sur la période,
+ * divisé par le temps nominal prévu au planning (heure_fin - heure_debut, sommé sur la
+ * période). Plafonné à 100 % ; 0 si aucun temps prévu connu (évite une division par zéro).
+ */
+export function computeTauxPresence(tempsPresenceSecondes, tempsPrevuSecondes) {
+  if (!tempsPrevuSecondes) return 0
+  return Math.min(100, Math.round((tempsPresenceSecondes / tempsPrevuSecondes) * 100))
 }
 
 /**
@@ -113,8 +140,14 @@ export async function getDailyView(date) {
 
   const results = await Promise.all(
     plannings.map(async (p) => {
-      const premierEnProd = await getFirstProdOfDay(p.agent_id, date)
+      const periods = await getAgentProdPeriods(p.agent_id, date)
+      const premierEnProd = periods[0]?.debut ?? null
       const { statut, heureReelle } = computeStatus(p.heure_debut, premierEnProd, { isToday })
+
+      const prevueMin = toMinutes(p.heure_debut)
+      const finMin = toMinutes(p.heure_fin)
+      const tempsPrevuSecondes = prevueMin != null && finMin != null && finMin > prevueMin ? (finMin - prevueMin) * 60 : null
+
       return {
         agentId: p.agent_id,
         planningId: p.id,
@@ -123,6 +156,8 @@ export async function getDailyView(date) {
         heurePrevue: p.heure_debut,
         heureReelle,
         statut,
+        tempsPresenceSecondes: Math.round(sumProdSeconds(periods)),
+        tempsPrevuSecondes,
       }
     })
   )
@@ -239,11 +274,15 @@ export async function getWeeklyLateCounts(weekStartDate, weekEndDate) {
  * aujourd'hui, on exclut sa ligne éventuelle et on calcule sa contribution en direct via
  * getDailyView(), pour que Semaine/Mois reflètent la production en cours comme le fait déjà
  * la vue Jour, sans jamais compter aujourd'hui deux fois.
+ *
+ * tauxPresence (le pourcentage) est calculé au temps réel — temps passé en production sur la
+ * période / temps nominal prévu au planning — et non plus comme une proportion de jours
+ * "présent". Le statut catégoriel quotidien (présent/retard/absence), lui, reste inchangé.
  */
 export async function getMonthlyReport(monthStartDate, monthEndDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('agent_id, date, statut, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
+    .select('agent_id, date, statut, temps_presence_secondes, temps_prevu_secondes, profils:agent_id ( nom, equipe_id, equipes:equipe_id ( nom ) )')
     .gte('date', monthStartDate)
     .lte('date', monthEndDate)
 
@@ -254,7 +293,10 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
 
   const byAgent = {}
   function ensure(id, nom, equipe) {
-    byAgent[id] ??= { agentId: id, nom, equipe, present: 0, retard: 0, absentInjustifie: 0, absentJustifie: 0, total: 0 }
+    byAgent[id] ??= {
+      agentId: id, nom, equipe, present: 0, retard: 0, absentInjustifie: 0, absentJustifie: 0, total: 0,
+      tempsPresenceSecondes: 0, tempsPrevuSecondes: 0,
+    }
     return byAgent[id]
   }
 
@@ -266,6 +308,8 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
     if (row.statut === 'retard') a.retard += 1
     if (row.statut === 'absent_injustifie') a.absentInjustifie += 1
     if (row.statut === 'absent_justifie') a.absentJustifie += 1
+    a.tempsPresenceSecondes += row.temps_presence_secondes ?? 0
+    a.tempsPrevuSecondes += row.temps_prevu_secondes ?? 0
   }
 
   if (includesToday) {
@@ -281,12 +325,14 @@ export async function getMonthlyReport(monthStartDate, monthEndDate) {
       if (r.statut === 'absent_injustifie') a.absentInjustifie += 1
       // les requalifications "absent_justifie" du jour même ne sont possibles qu'une fois la
       // ligne écrite par le cron — non représentées dans le calcul en direct.
+      a.tempsPresenceSecondes += r.tempsPresenceSecondes ?? 0
+      a.tempsPrevuSecondes += r.tempsPrevuSecondes ?? 0
     }
   }
 
   return Object.values(byAgent).map((a) => ({
     ...a,
-    tauxPresence: a.total ? Math.round((a.present / a.total) * 100) : 0,
+    tauxPresence: computeTauxPresence(a.tempsPresenceSecondes, a.tempsPrevuSecondes),
   }))
 }
 
@@ -385,7 +431,7 @@ export async function getDailyRetardTrend(days = 10) {
 export async function getAgentDayStatuses(agentId, startDate, endDate) {
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('date, statut, heure_prevue, heure_reelle, motif_justification')
+    .select('date, statut, heure_prevue, heure_reelle, motif_justification, temps_presence_secondes, temps_prevu_secondes')
     .eq('agent_id', agentId)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -408,12 +454,20 @@ export async function getAgentDailyStatus(agentId, date) {
     const rows = await getDailyView(date)
     const row = rows.find((r) => r.agentId === agentId)
     if (!row) return null
-    return { date, heurePrevue: row.heurePrevue, heureReelle: row.heureReelle, statut: row.statut, motifJustification: null }
+    return {
+      date,
+      heurePrevue: row.heurePrevue,
+      heureReelle: row.heureReelle,
+      statut: row.statut,
+      motifJustification: null,
+      tempsPresenceSecondes: row.tempsPresenceSecondes,
+      tempsPrevuSecondes: row.tempsPrevuSecondes,
+    }
   }
 
   const { data, error } = await supabase
     .from('assiduite_statuts_jour')
-    .select('date, statut, heure_prevue, heure_reelle, motif_justification')
+    .select('date, statut, heure_prevue, heure_reelle, motif_justification, temps_presence_secondes, temps_prevu_secondes')
     .eq('agent_id', agentId)
     .eq('date', date)
     .maybeSingle()
@@ -426,6 +480,8 @@ export async function getAgentDailyStatus(agentId, date) {
     heureReelle: data.heure_reelle,
     statut: data.statut,
     motifJustification: data.motif_justification,
+    tempsPresenceSecondes: data.temps_presence_secondes,
+    tempsPrevuSecondes: data.temps_prevu_secondes,
   }
 }
 
@@ -446,6 +502,8 @@ export async function getAgentMonthlyStats(agentId, startDate, endDate) {
       heureReelle: d.heure_reelle,
       statut: d.statut,
       motifJustification: d.motif_justification,
+      tempsPresenceSecondes: d.temps_presence_secondes,
+      tempsPrevuSecondes: d.temps_prevu_secondes,
     }))
 
   if (includesToday) {
@@ -466,7 +524,11 @@ export async function getAgentMonthlyStats(agentId, startDate, endDate) {
     { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
   )
 
-  return { stats, days }
+  const tempsPresenceSecondes = days.reduce((sum, d) => sum + (d.tempsPresenceSecondes ?? 0), 0)
+  const tempsPrevuSecondes = days.reduce((sum, d) => sum + (d.tempsPrevuSecondes ?? 0), 0)
+  const tauxPresence = computeTauxPresence(tempsPresenceSecondes, tempsPrevuSecondes)
+
+  return { stats, days, tauxPresence }
 }
 
 export async function getAgentProfile(agentId) {

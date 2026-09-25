@@ -11,6 +11,7 @@ import {
   getMonthRetardTotal,
   getWeeklyLateCounts,
   justifyAbsence,
+  computeTauxPresence,
 } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 
@@ -125,6 +126,10 @@ export default function DayView() {
     absentInj: visibleRows.filter((r) => r.statut === 'absent_injustifie').length,
     absentJust: visibleRows.filter((r) => r.statut === 'absent_justifie').length,
   }
+  const tauxPresence = computeTauxPresence(
+    visibleRows.reduce((sum, r) => sum + (r.tempsPresenceSecondes ?? 0), 0),
+    visibleRows.reduce((sum, r) => sum + (r.tempsPrevuSecondes ?? 0), 0)
+  )
   async function handleJustify(row) {
     const motif = window.prompt(`Motif de justification pour ${row.nom} :`)
     if (!motif) return
@@ -169,7 +174,7 @@ export default function DayView() {
         </div>
 
         <div className="bento">
-          <Donut stats={stats} />
+          <Donut stats={stats} tauxPresence={tauxPresence} />
 
           <div className="surface kpi-small">
             <div className="kpi-label">Retards ce mois</div>

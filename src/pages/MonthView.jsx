@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable'
 import Header from '../components/Header'
 import Donut from '../components/Donut'
 import TeamAgentFilter from '../components/TeamAgentFilter'
-import { getMonthlyReport } from '../lib/attendance'
+import { getMonthlyReport, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 
 function currentMonthBounds() {
@@ -70,6 +70,14 @@ export default function MonthView() {
       ),
     [visibleRows]
   )
+  const tauxPresence = useMemo(
+    () =>
+      computeTauxPresence(
+        visibleRows.reduce((sum, r) => sum + (r.tempsPresenceSecondes ?? 0), 0),
+        visibleRows.reduce((sum, r) => sum + (r.tempsPrevuSecondes ?? 0), 0)
+      ),
+    [visibleRows]
+  )
 
   function exportExcel() {
     const data = visibleRows.map((r) => ({
@@ -107,7 +115,7 @@ export default function MonthView() {
       <Header title="Rapport mensuel" subtitle="Synthèse d'assiduité par agent et par équipe" />
       <div className="content">
         <div className="bento">
-          <Donut stats={stats} />
+          <Donut stats={stats} tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

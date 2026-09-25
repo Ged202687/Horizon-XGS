@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import Donut from '../components/Donut'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
-import { getWeeklyLateCounts, getMonthlyReport } from '../lib/attendance'
+import { getWeeklyLateCounts, getMonthlyReport, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 
 // Lundi → dimanche de la semaine en cours (production 7j/7, pas seulement en semaine).
@@ -71,6 +71,10 @@ export default function WeekView() {
     }),
     { present: 0, retard: 0, absentInj: 0, absentJust: 0 }
   )
+  const tauxPresence = computeTauxPresence(
+    scopedReportRows.reduce((sum, r) => sum + (r.tempsPresenceSecondes ?? 0), 0),
+    scopedReportRows.reduce((sum, r) => sum + (r.tempsPrevuSecondes ?? 0), 0)
+  )
 
   const teamAgents = teamFilter === 'Toutes' ? agents : agents.filter((a) => a.equipe === teamFilter)
   const visibleAgents = (agentFilter ? teamAgents.filter((a) => a.agentId === agentFilter) : teamAgents)
@@ -82,7 +86,7 @@ export default function WeekView() {
       <Header title="Rapport hebdomadaire" subtitle={`Semaine du ${start} au ${end}`} />
       <div className="content">
         <div className="bento">
-          <Donut stats={stats} />
+          <Donut stats={stats} tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

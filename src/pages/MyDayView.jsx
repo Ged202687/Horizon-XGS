@@ -3,7 +3,7 @@ import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import { useAuth } from '../context/AuthContext'
-import { getAgentDailyStatus } from '../lib/attendance'
+import { getAgentDailyStatus, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { supabase } from '../supabaseClient'
 
@@ -55,6 +55,7 @@ export default function MyDayView() {
     absentInj: status?.statut === 'absent_injustifie' ? 1 : 0,
     absentJust: status?.statut === 'absent_justifie' ? 1 : 0,
   }
+  const tauxPresence = computeTauxPresence(status?.tempsPresenceSecondes ?? 0, status?.tempsPrevuSecondes ?? 0)
 
   return (
     <>
@@ -68,7 +69,7 @@ export default function MyDayView() {
         </div>
 
         <div className="bento">
-          <Donut stats={stats} />
+          <Donut stats={stats} tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

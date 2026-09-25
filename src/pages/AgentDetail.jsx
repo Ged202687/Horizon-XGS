@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
-import { getAgentDayStatuses, getAgentProfile } from '../lib/attendance'
+import { getAgentDayStatuses, getAgentProfile, computeTauxPresence } from '../lib/attendance'
 
 function currentMonthBounds() {
   const now = new Date()
@@ -32,7 +32,10 @@ export default function AgentDetail() {
     absentInj: days.filter((d) => d.statut === 'absent_injustifie').length,
     absentJust: days.filter((d) => d.statut === 'absent_justifie').length,
   }
-  const tauxPresence = days.length ? Math.round((stats.present / days.length) * 100) : 0
+  const tauxPresence = computeTauxPresence(
+    days.reduce((sum, d) => sum + (d.temps_presence_secondes ?? 0), 0),
+    days.reduce((sum, d) => sum + (d.temps_prevu_secondes ?? 0), 0)
+  )
 
   return (
     <>

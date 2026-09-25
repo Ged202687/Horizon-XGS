@@ -15,6 +15,13 @@ Exécuter dans l'ordre, sur le projet Supabase d'Auréo/Méridien (même base) :
    de justifier une absence immédiatement, même avant le passage du cron `horizon_calcul_jour`,
    sans policy INSERT à ouvrir) + active Realtime sur `assiduite_statuts_jour` (nécessaire pour
    que la session agent en lecture seule se mette à jour automatiquement).
+6. **`006_taux_presence.sql`** — ajoute `temps_presence_secondes`/`temps_prevu_secondes` à
+   `assiduite_statuts_jour` et met à jour `horizon_calcul_jour()` pour les calculer. Le "taux de
+   présence" (donut, rapport mensuel) passe d'une proportion de jours "présent" à un vrai ratio
+   temps travaillé / temps prévu au planning — le statut catégoriel quotidien (présent / retard /
+   absence) n'est pas affecté. Contient un bloc de backfill optionnel (commenté) pour recalculer
+   les jours déjà passés du mois en cours ; sans lui, ils restent à NULL (exclus du taux) jusqu'à
+   leur prochain recalcul naturel.
 
 ## Hypothèses à vérifier avant exécution
 
