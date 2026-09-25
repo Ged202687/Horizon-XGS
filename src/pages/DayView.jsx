@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
+import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -173,8 +174,9 @@ export default function DayView() {
           />
         </div>
 
-        <div className="bento">
-          <Donut stats={stats} tauxPresence={tauxPresence} />
+        <div className="bento-4">
+          <Donut stats={stats} />
+          <TauxPresenceCard tauxPresence={tauxPresence} />
 
           <div className="surface kpi-small">
             <div className="kpi-label">Retards ce mois</div>

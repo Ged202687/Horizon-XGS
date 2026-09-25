@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
+import TauxPresenceCard from '../components/TauxPresenceCard'
 import { useAuth } from '../context/AuthContext'
 import { getAgentDailyStatus, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
@@ -69,7 +70,8 @@ export default function MyDayView() {
         </div>
 
         <div className="bento">
-          <Donut stats={stats} tauxPresence={tauxPresence} />
+          <Donut stats={stats} />
+          <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

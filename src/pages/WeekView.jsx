@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Donut from '../components/Donut'
+import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { useAuth } from '../context/AuthContext'
 import { getWeeklyLateCounts, getMonthlyReport, computeTauxPresence } from '../lib/attendance'
@@ -86,7 +87,8 @@ export default function WeekView() {
       <Header title="Rapport hebdomadaire" subtitle={`Semaine du ${start} au ${end}`} />
       <div className="content">
         <div className="bento">
-          <Donut stats={stats} tauxPresence={tauxPresence} />
+          <Donut stats={stats} />
+          <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">

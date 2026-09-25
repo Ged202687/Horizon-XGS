@@ -1,19 +1,14 @@
 /**
  * Donut présence/retards/absences — carte "hero-kpi", identique sur les vues Jour, Semaine et Mois.
- *
- * Les tranches de l'anneau et la légende restent une répartition en JOURS (nombre de jours
- * présent/retard/absence) — inchangé. Le nombre au centre, lui, est le taux de présence au
- * temps réel (temps passé en production / temps prévu au planning, cf. computeTauxPresence
- * dans attendance.js) : passer `tauxPresence` pour l'afficher ; à défaut, on retombe sur
- * l'ancien calcul (proportion de jours "présent") pour ne rien casser côté appelant.
+ * Répartition en JOURS (nombre de jours présent/retard/absence) — anneau et centre cohérents
+ * entre eux. Le taux de présence au temps réel est une carte séparée (cf. TauxPresenceCard).
  */
-export default function Donut({ stats, tauxPresence }) {
+export default function Donut({ stats }) {
   const total = stats.present + stats.retard + stats.absentInj + stats.absentJust || 1
-  const pctPresent = tauxPresence ?? Math.round((stats.present / total) * 100)
+  const pctPresent = Math.round((stats.present / total) * 100)
   const pctRetard = Math.round((stats.retard / total) * 100)
-  const pctPresentJours = Math.round((stats.present / total) * 100)
   const donutStyle = {
-    background: `conic-gradient(var(--sage) 0% ${pctPresentJours}%, var(--amber) ${pctPresentJours}% ${pctPresentJours + pctRetard}%, var(--brick) ${pctPresentJours + pctRetard}% 100%)`,
+    background: `conic-gradient(var(--sage) 0% ${pctPresent}%, var(--amber) ${pctPresent}% ${pctPresent + pctRetard}%, var(--brick) ${pctPresent + pctRetard}% 100%)`,
   }
 
   return (

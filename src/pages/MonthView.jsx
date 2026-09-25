@@ -5,6 +5,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import Header from '../components/Header'
 import Donut from '../components/Donut'
+import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
 import { getMonthlyReport, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
@@ -115,7 +116,8 @@ export default function MonthView() {
       <Header title="Rapport mensuel" subtitle="Synthèse d'assiduité par agent et par équipe" />
       <div className="content">
         <div className="bento">
-          <Donut stats={stats} tauxPresence={tauxPresence} />
+          <Donut stats={stats} />
+          <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
 
         <div className="surface full">
