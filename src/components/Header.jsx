@@ -10,6 +10,7 @@ const ROLES = {
   superviseur: 'Superviseur',
   admin: 'Administrateur',
   super_admin: 'Super administrateur',
+  direction: 'Direction générale',
 }
 
 function onglet({ isActive }) {
