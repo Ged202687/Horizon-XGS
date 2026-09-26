@@ -5,6 +5,9 @@ import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
+import JustifierDialog from '../components/JustifierDialog'
+import { Chargement, EtatErreur, EtatVide } from '../components/Etats'
+import { IconeCadenas } from '../components/Icones'
 import { useAuth } from '../context/AuthContext'
 import {
   getDailyView,
@@ -64,6 +67,8 @@ export default function DayView() {
   const [monthRetards, setMonthRetards] = useState(0)
   const [retardTrend, setRetardTrend] = useState([])
   const [agentsASurveiller, setAgentsASurveiller] = useState(0)
+  const [erreur, setErreur] = useState(null)
+  const [aJustifier, setAJustifier] = useState(null)
 
   const scopeTeam = profil?.role === 'coach' || profil?.role === 'superviseur' ? profil?.equipes?.nom : null
   const isToday = selectedDate === todayISO()
@@ -71,7 +76,8 @@ export default function DayView() {
   function loadRows(showLoading) {
     if (showLoading) setLoading(true)
     return getDailyView(selectedDate)
-      .then(setRows)
+      .then((r) => { setRows(r); setErreur(null) })
+      .catch((e) => setErreur(e.message))
       .finally(() => {
         if (showLoading) setLoading(false)
       })
@@ -132,47 +138,47 @@ export default function DayView() {
     visibleRows.reduce((sum, r) => sum + (r.tempsPresenceSecondes ?? 0), 0),
     visibleRows.reduce((sum, r) => sum + (r.tempsPrevuSecondes ?? 0), 0)
   )
-  async function handleJustify(row) {
-    const motif = window.prompt(`Motif de justification pour ${row.nom} :`)
-    if (!motif) return
-    try {
-      await justifyAbsence({
-        agentId: row.agentId,
-        planningId: row.planningId,
-        date: selectedDate,
-        heurePrevue: row.heurePrevue,
-        heureReelle: row.heureReelle,
-        motif,
-      })
-      setRows((prev) => prev.map((r) => (r.agentId === row.agentId ? { ...r, statut: 'absent_justifie' } : r)))
-    } catch (e) {
-      window.alert(`Échec de la justification : ${e.message}`)
-    }
+  // Lancée par la fenêtre de justification ; une erreur remonte à la fenêtre,
+  // qui l'affiche sans perdre le motif tapé.
+  async function handleJustify(row, motif) {
+    await justifyAbsence({
+      agentId: row.agentId,
+      planningId: row.planningId,
+      date: selectedDate,
+      heurePrevue: row.heurePrevue,
+      heureReelle: row.heureReelle,
+      motif,
+    })
+    setRows((prev) => prev.map((r) => (r.agentId === row.agentId ? { ...r, statut: 'absent_justifie' } : r)))
+    setAJustifier(null)
   }
 
   return (
     <>
       <Header
-        title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''} 👋`}
+        title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''}`}
         subtitle={
           scopeTeam
             ? `Équipe ${scopeTeam}`
-            : `${new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — ${visibleRows.length} agents planifiés${isToday ? " aujourd'hui" : ''}`
+            : `${visibleRows.length} agents planifiés${isToday ? " aujourd'hui" : ` le ${new Date(selectedDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`}`
         }
       />
       <div className="content">
         {scopeTeam && (
-          <div className="scope-banner">🔒 Vue en lecture seule, limitée à votre équipe : {scopeTeam}</div>
+          <div className="scope-banner"><IconeCadenas /> Vue en lecture seule, limitée à votre équipe : {scopeTeam}</div>
         )}
 
-        <div className="field" style={{ maxWidth: 200, marginBottom: 16 }}>
-          <label>Journée consultée</label>
-          <input
-            type="date"
-            value={selectedDate}
-            max={todayISO()}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
+        <div className="toolbar">
+          <div className="field field-date">
+            <label htmlFor="journee">Journée consultée</label>
+            <input
+              id="journee"
+              type="date"
+              value={selectedDate}
+              max={todayISO()}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="bento-4">
@@ -205,27 +211,34 @@ export default function DayView() {
             />
           </div>
           {loading ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
+            <Chargement />
+          ) : erreur ? (
+            <EtatErreur />
+          ) : visibleRows.length === 0 ? (
+            <EtatVide
+              titre="Aucun agent planifié ce jour-là."
+              detail="Les agents apparaissent ici dès qu'ils ont un créneau au planning Méridien."
+            />
           ) : (
             <div className="table-scroll">
             <table>
               <thead>
-                <tr><th>Agent</th><th>Prévu</th><th>Production</th><th>Statut</th><th></th></tr>
+                <tr><th>Agent</th><th>Prévu</th><th>Production</th><th>Statut</th><th><span className="sr-only">Action</span></th></tr>
               </thead>
               <tbody>
                 {visibleRows.map((r) => (
                   <tr key={r.agentId}>
-                    <td className="agent-link" onClick={() => navigate(`/agent/${r.agentId}`)}>
-                      <div className="agent-cell">
-                        <div className="agent-avatar">{r.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
-                        <div className="agent-name">{r.nom}</div>
-                      </div>
+                    <td>
+                      <button type="button" className="agent-link agent-cell" onClick={() => navigate(`/agent/${r.agentId}`)}>
+                        <span className="agent-avatar" aria-hidden="true">{r.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span>
+                        <span className="agent-name">{r.nom}</span>
+                      </button>
                     </td>
-                    <td className="mono">{r.heurePrevue}</td>
+                    <td className="mono">{r.heurePrevue?.slice(0, 5)}</td>
                     <td className="mono">
-                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(r.tempsPresenceSecondes)}</div>
+                      <div className="strong">{formatDuration(r.tempsPresenceSecondes)}</div>
                       {r.heureReelle && (
-                        <div style={{ fontSize: 11 }}>
+                        <div className="sub">
                           arrivée {new Date(r.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
@@ -233,7 +246,7 @@ export default function DayView() {
                     <td><StatusBadge statut={r.statut} /></td>
                     <td>
                       {r.statut === 'absent_injustifie' && canEdit && (
-                        <button className="btn" onClick={() => handleJustify(r)}>Justifier</button>
+                        <button type="button" className="btn" onClick={() => setAJustifier(r)}>Justifier</button>
                       )}
                     </td>
                   </tr>
@@ -244,6 +257,13 @@ export default function DayView() {
           )}
         </div>
       </div>
+      {aJustifier && (
+        <JustifierDialog
+          agent={aJustifier.nom}
+          onConfirm={(motif) => handleJustify(aJustifier, motif)}
+          onClose={() => setAJustifier(null)}
+        />
+      )}
     </>
   )
 }

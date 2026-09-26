@@ -3,6 +3,8 @@ import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
+import { Chargement, EtatVide } from '../components/Etats'
+import { IconeCadenas } from '../components/Icones'
 import { useAuth } from '../context/AuthContext'
 import { getAgentDailyStatus, computeTauxPresence, formatDuration } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
@@ -60,16 +62,18 @@ export default function MyDayView() {
 
   return (
     <>
-      <Header title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''} 👋`} subtitle="Votre assiduité, par journée" />
+      <Header title={`Bonjour ${profil?.nom?.split(' ')[0] ?? ''}`} subtitle="Votre assiduité, par journée" />
       <div className="content">
-        <div className="scope-banner">🔒 Vue en lecture seule — votre assiduité personnelle</div>
+        <div className="scope-banner"><IconeCadenas /> Vue en lecture seule — votre assiduité personnelle</div>
 
-        <div className="field" style={{ maxWidth: 200, marginBottom: 16 }}>
-          <label>Journée consultée</label>
-          <input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
+        <div className="toolbar">
+          <div className="field field-date">
+            <label htmlFor="journee">Journée consultée</label>
+            <input id="journee" type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
+          </div>
         </div>
 
-        <div className="bento">
+        <div className="bento bento-2">
           <Donut stats={stats} />
           <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
@@ -79,20 +83,20 @@ export default function MyDayView() {
             <h2>Détail du {new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
           </div>
           {loading ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
+            <Chargement lignes={2} />
           ) : !status ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Aucun planning ce jour-là.</div>
+            <EtatVide titre="Aucun planning ce jour-là." detail="Vos créneaux viennent du planning Méridien." />
           ) : (
             <div className="table-scroll">
             <table>
               <thead><tr><th>Prévu</th><th>Production</th><th>Statut</th><th>Motif</th></tr></thead>
               <tbody>
                 <tr>
-                  <td className="mono">{status.heurePrevue}</td>
+                  <td className="mono">{status.heurePrevue?.slice(0, 5)}</td>
                   <td className="mono">
-                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(status.tempsPresenceSecondes)}</div>
+                    <div className="strong">{formatDuration(status.tempsPresenceSecondes)}</div>
                     {status.heureReelle && (
-                      <div style={{ fontSize: 11 }}>
+                      <div className="sub">
                         arrivée {new Date(status.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}

@@ -3,6 +3,8 @@ import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
+import { Chargement, EtatVide } from '../components/Etats'
+import { IconeCadenas } from '../components/Icones'
 import { useAuth } from '../context/AuthContext'
 import { getAgentMonthlyStats, formatDuration } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
@@ -60,11 +62,15 @@ export default function MyMonthView() {
 
   return (
     <>
-      <Header title="Rapport mensuel" subtitle={`Votre assiduité — ${profil?.equipes?.nom ?? ''}`} />
+      <Header
+        title="Rapport mensuel"
+        eyebrow={new Date(start).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+        subtitle={`Votre assiduité${profil?.equipes?.nom ? ` — ${profil.equipes.nom}` : ''}`}
+      />
       <div className="content">
-        <div className="scope-banner">🔒 Vue en lecture seule — votre assiduité personnelle</div>
+        <div className="scope-banner"><IconeCadenas /> Vue en lecture seule — votre assiduité personnelle</div>
 
-        <div className="bento">
+        <div className="bento bento-2">
           <Donut stats={stats} />
           <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
@@ -72,7 +78,9 @@ export default function MyMonthView() {
         <div className="surface full">
           <div className="panel-head"><h2>Historique du mois</h2></div>
           {loading ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
+            <Chargement />
+          ) : days.length === 0 ? (
+            <EtatVide titre="Aucune journée planifiée ce mois-ci." detail="Vos créneaux viennent du planning Méridien." />
           ) : (
             <div className="table-scroll">
             <table>
@@ -81,11 +89,11 @@ export default function MyMonthView() {
                 {days.map((d) => (
                   <tr key={d.date}>
                     <td>{new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
-                    <td className="mono">{d.heurePrevue}</td>
+                    <td className="mono">{d.heurePrevue?.slice(0, 5)}</td>
                     <td className="mono">
-                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(d.tempsPresenceSecondes)}</div>
+                      <div className="strong">{formatDuration(d.tempsPresenceSecondes)}</div>
                       {d.heureReelle && (
-                        <div style={{ fontSize: 11 }}>
+                        <div className="sub">
                           arrivée {new Date(d.heureReelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}

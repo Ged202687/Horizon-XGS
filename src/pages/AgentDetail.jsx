@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/Header'
 import StatusBadge from '../components/StatusBadge'
+import { Chargement, EtatErreur, EtatVide } from '../components/Etats'
+import { IconeRetour } from '../components/Icones'
 import { getAgentDayStatuses, getAgentProfile, computeTauxPresence, formatDuration } from '../lib/attendance'
 
 function currentMonthBounds() {
@@ -17,12 +19,15 @@ export default function AgentDetail() {
   const [profile, setProfile] = useState(null)
   const [days, setDays] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
   const [start, end] = currentMonthBounds()
 
   useEffect(() => {
     setLoading(true)
+    setErreur(null)
     Promise.all([getAgentProfile(agentId), getAgentDayStatuses(agentId, start, end)])
       .then(([p, d]) => { setProfile(p); setDays(d) })
+      .catch((e) => setErreur(e.message))
       .finally(() => setLoading(false))
   }, [agentId])
 
@@ -39,26 +44,24 @@ export default function AgentDetail() {
 
   return (
     <>
-      <Header title="Fiche agent" subtitle={profile?.equipes?.nom ?? ''} />
+      <Header
+        title={profile?.nom ?? 'Fiche agent'}
+        eyebrow="Fiche agent"
+        subtitle={profile?.equipes?.nom ? `Équipe ${profile.equipes.nom}` : ''}
+      />
       <div className="content">
-        <div className="btn" style={{ display: 'inline-block', marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate(-1)}>
-          ← Retour
-        </div>
+        <button type="button" className="btn back" onClick={() => navigate(-1)}>
+          <IconeRetour /> Retour
+        </button>
 
-        {loading || !profile ? (
-          <div style={{ color: 'var(--ink-soft)' }}>Chargement…</div>
+        {loading ? (
+          <div className="surface"><Chargement lignes={4} /></div>
+        ) : erreur ? (
+          <div className="surface"><EtatErreur /></div>
+        ) : !profile ? (
+          <div className="surface"><EtatVide titre="Agent introuvable." detail="Ce profil n'existe plus ou n'est pas visible avec votre compte." /></div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--navy)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 19 }}>
-                {profile.nom.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
-              </div>
-              <div>
-                <h1 style={{ fontSize: 20, marginBottom: 3 }}>{profile.nom}</h1>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{profile.equipes?.nom}</div>
-              </div>
-            </div>
-
             <div className="bento">
               <div className="surface">
                 <div className="kpi-label">Taux de présence (mois)</div>
@@ -76,6 +79,9 @@ export default function AgentDetail() {
 
             <div className="surface full">
               <div className="panel-head"><h2>Historique du mois</h2></div>
+              {days.length === 0 ? (
+                <EtatVide titre="Aucune journée planifiée ce mois-ci." />
+              ) : (
               <div className="table-scroll">
               <table>
                 <thead><tr><th>Date</th><th>Prévu</th><th>Production</th><th>Statut</th><th>Motif</th></tr></thead>
@@ -83,11 +89,11 @@ export default function AgentDetail() {
                   {days.map((d) => (
                     <tr key={d.date}>
                       <td>{new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</td>
-                      <td className="mono">{d.heure_prevue}</td>
+                      <td className="mono">{d.heure_prevue?.slice(0, 5)}</td>
                       <td className="mono">
-                        <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{formatDuration(d.temps_presence_secondes)}</div>
+                        <div className="strong">{formatDuration(d.temps_presence_secondes)}</div>
                         {d.heure_reelle && (
-                          <div style={{ fontSize: 11 }}>
+                          <div className="sub">
                             arrivée {new Date(d.heure_reelle).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         )}
@@ -99,6 +105,7 @@ export default function AgentDetail() {
                 </tbody>
               </table>
               </div>
+              )}
             </div>
           </>
         )}

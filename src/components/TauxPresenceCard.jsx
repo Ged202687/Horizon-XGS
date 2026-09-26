@@ -9,7 +9,7 @@ export default function TauxPresenceCard({ tauxPresence }) {
     <div className="surface kpi-small">
       <div className="kpi-label">Taux de présence (temps réel)</div>
       <div className="kpi-value" style={{ color: 'var(--sage)' }}>{tauxPresence}%</div>
-      <div className="kpi-trend" style={{ color: 'var(--ink-soft)' }}>Temps travaillé / temps prévu au planning</div>
+      <div className="kpi-note">Temps travaillé / temps prévu au planning</div>
     </div>
   )
 }

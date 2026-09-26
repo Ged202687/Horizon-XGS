@@ -4,18 +4,25 @@
  * entre eux. Le taux de présence au temps réel est une carte séparée (cf. TauxPresenceCard).
  */
 export default function Donut({ stats }) {
-  const total = stats.present + stats.retard + stats.absentInj + stats.absentJust || 1
-  const pctPresent = Math.round((stats.present / total) * 100)
-  const pctRetard = Math.round((stats.retard / total) * 100)
+  const somme = stats.present + stats.retard + stats.absentInj + stats.absentJust
+  const total = somme || 1
+  const pct = (n) => (n / total) * 100
+  const a = pct(stats.present)
+  const b = a + pct(stats.retard)
+  const c = b + pct(stats.absentInj)
+  // Chaque statut a son segment, absences justifiées comprises (gris ardoise) ;
+  // sans donnée, l'anneau reste neutre plutôt que rouge.
   const donutStyle = {
-    background: `conic-gradient(var(--sage) 0% ${pctPresent}%, var(--amber) ${pctPresent}% ${pctPresent + pctRetard}%, var(--brick) ${pctPresent + pctRetard}% 100%)`,
+    background: somme
+      ? `conic-gradient(var(--sage) 0% ${a}%, var(--amber) ${a}% ${b}%, var(--brick) ${b}% ${c}%, var(--slate) ${c}% 100%)`
+      : 'var(--line)',
   }
 
   return (
     <div className="surface hero-kpi">
-      <div className="donut" style={donutStyle}>
+      <div className="donut" style={donutStyle} role="img" aria-label={`${Math.round(a)} % de jours de présence`}>
         <div className="donut-inner">
-          <div className="n">{pctPresent}%</div>
+          <div className="n">{Math.round(a)}%</div>
           <div className="l">PRÉSENCE</div>
         </div>
       </div>

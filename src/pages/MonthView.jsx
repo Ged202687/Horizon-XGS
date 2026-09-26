@@ -7,6 +7,8 @@ import Header from '../components/Header'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
+import { Chargement, EtatErreur, EtatVide } from '../components/Etats'
+import { IconeTelecharger } from '../components/Icones'
 import { getMonthlyReport, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 
@@ -23,12 +25,14 @@ export default function MonthView() {
   const [loading, setLoading] = useState(true)
   const [teamFilter, setTeamFilter] = useState('Toutes')
   const [agentFilter, setAgentFilter] = useState('')
+  const [erreur, setErreur] = useState(null)
   const [start, end] = currentMonthBounds()
 
   function loadMonth(showLoading) {
     if (showLoading) setLoading(true)
     return getMonthlyReport(start, end)
-      .then(setRows)
+      .then((r) => { setRows(r); setErreur(null) })
+      .catch((e) => setErreur(e.message))
       .finally(() => {
         if (showLoading) setLoading(false)
       })
@@ -106,16 +110,21 @@ export default function MonthView() {
       startY: 28,
       head: [['Agent', 'Équipe', 'Présence', 'Retards', 'Abs. inj.', 'Abs. just.']],
       body: visibleRows.map((r) => [r.nom, r.equipe ?? '—', `${r.tauxPresence}%`, r.retard, r.absentInjustifie, r.absentJustifie]),
-      headStyles: { fillColor: [20, 26, 61] },
+      // Bleu nuit XGS (#000B53), comme l'en-tete de l'application.
+      headStyles: { fillColor: [0, 11, 83] },
     })
     doc.save(`horizon-rapport-mensuel-${start}.pdf`)
   }
 
   return (
     <>
-      <Header title="Rapport mensuel" subtitle="Synthèse d'assiduité par agent et par équipe" />
+      <Header
+        title="Rapport mensuel"
+        eyebrow={new Date(start).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+        subtitle="Synthèse d'assiduité par agent et par équipe"
+      />
       <div className="content">
-        <div className="bento">
+        <div className="bento bento-2">
           <Donut stats={stats} />
           <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
@@ -123,7 +132,7 @@ export default function MonthView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Détail par agent</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div className="panel-actions">
               <TeamAgentFilter
                 teams={teams}
                 teamFilter={teamFilter}
@@ -132,14 +141,18 @@ export default function MonthView() {
                 agentFilter={agentFilter}
                 onAgentChange={setAgentFilter}
               />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn" onClick={exportExcel}>↓ Excel</button>
-                <button className="btn btn-dark" onClick={exportPdf}>↓ PDF</button>
+              <div className="filter-row">
+                <button type="button" className="btn" onClick={exportExcel} disabled={!visibleRows.length}><IconeTelecharger /> Excel</button>
+                <button type="button" className="btn btn-dark" onClick={exportPdf} disabled={!visibleRows.length}><IconeTelecharger /> PDF</button>
               </div>
             </div>
           </div>
           {loading ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
+            <Chargement />
+          ) : erreur ? (
+            <EtatErreur />
+          ) : visibleRows.length === 0 ? (
+            <EtatVide titre="Aucune donnée d'assiduité ce mois-ci." detail="Le rapport se remplit au fil des journées de production." />
           ) : (
             <div className="table-scroll">
             <table>
@@ -149,11 +162,11 @@ export default function MonthView() {
               <tbody>
                 {visibleRows.map((r) => (
                   <tr key={r.agentId}>
-                    <td className="agent-link" onClick={() => navigate(`/agent/${r.agentId}`)}>
-                      <div className="agent-cell">
-                        <div className="agent-avatar">{r.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
-                        <div className="agent-name">{r.nom}</div>
-                      </div>
+                    <td>
+                      <button type="button" className="agent-link agent-cell" onClick={() => navigate(`/agent/${r.agentId}`)}>
+                        <span className="agent-avatar" aria-hidden="true">{r.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span>
+                        <span className="agent-name">{r.nom}</span>
+                      </button>
                     </td>
                     <td className="mono">{r.equipe}</td>
                     <td className="mono" style={{ color: 'var(--sage)', fontWeight: 700 }}>{r.tauxPresence}%</td>

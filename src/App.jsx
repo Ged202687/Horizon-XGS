@@ -7,10 +7,11 @@ import MonthView from './pages/MonthView'
 import AgentDetail from './pages/AgentDetail'
 import MyDayView from './pages/MyDayView'
 import MyMonthView from './pages/MyMonthView'
+import { EcranAttente } from './components/Etats'
 
 function RequireAuth({ children }) {
   const { session, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <EcranAttente />
   if (!session) return <Navigate to="/login" replace />
   return children
 }
@@ -19,7 +20,7 @@ function RequireAuth({ children }) {
 // admin, super_admin). Un agent est redirigé vers sa propre session en lecture seule.
 function RequireStaff({ children }) {
   const { session, profil, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <EcranAttente />
   if (!session) return <Navigate to="/login" replace />
   if (profil?.role === 'agent') return <Navigate to="/mon-jour" replace />
   return children
@@ -27,7 +28,7 @@ function RequireStaff({ children }) {
 
 function HomeRedirect() {
   const { session, profil, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <EcranAttente />
   if (!session) return <Navigate to="/login" replace />
   return <Navigate to={profil?.role === 'agent' ? '/mon-jour' : '/jour'} replace />
 }

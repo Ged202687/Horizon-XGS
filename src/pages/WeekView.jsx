@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import Donut from '../components/Donut'
 import TauxPresenceCard from '../components/TauxPresenceCard'
 import TeamAgentFilter from '../components/TeamAgentFilter'
+import { Chargement, EtatErreur, EtatVide } from '../components/Etats'
 import { useAuth } from '../context/AuthContext'
 import { getWeeklyLateCounts, getMonthlyReport, computeTauxPresence } from '../lib/attendance'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
@@ -19,6 +20,10 @@ function currentWeekBounds() {
   return [monday.toISOString().slice(0, 10), sunday.toISOString().slice(0, 10)]
 }
 
+function jourMois(iso) {
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+}
+
 export default function WeekView() {
   const { profil } = useAuth()
   const navigate = useNavigate()
@@ -27,11 +32,14 @@ export default function WeekView() {
   const [loading, setLoading] = useState(true)
   const [teamFilter, setTeamFilter] = useState('Toutes')
   const [agentFilter, setAgentFilter] = useState('')
+  const [erreur, setErreur] = useState(null)
   const [start, end] = currentWeekBounds()
 
   function loadWeek(showLoading) {
     if (showLoading) setLoading(true)
-    const pending = getWeeklyLateCounts(start, end).then(setAgents)
+    const pending = getWeeklyLateCounts(start, end)
+      .then((a) => { setAgents(a); setErreur(null) })
+      .catch((e) => setErreur(e.message))
 
     // getMonthlyReport agrège par plage de dates arbitraire (pas seulement calendaire) —
     // réutilisée ici pour obtenir la répartition présence/retards/absences de la semaine et
@@ -84,9 +92,9 @@ export default function WeekView() {
 
   return (
     <>
-      <Header title="Rapport hebdomadaire" subtitle={`Semaine du ${start} au ${end}`} />
+      <Header title="Rapport hebdomadaire" subtitle={`Semaine du ${jourMois(start)} au ${jourMois(end)}`} />
       <div className="content">
-        <div className="bento">
+        <div className="bento bento-2">
           <Donut stats={stats} />
           <TauxPresenceCard tauxPresence={tauxPresence} />
         </div>
@@ -94,8 +102,8 @@ export default function WeekView() {
         <div className="surface full">
           <div className="panel-head">
             <h2>Retards cumulés</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>seuil d'alerte : 3</span>
+            <div className="panel-actions">
+              <span className="hint">Seuil d'alerte : 3 retards</span>
               <TeamAgentFilter
                 teams={teams}
                 teamFilter={teamFilter}
@@ -107,19 +115,23 @@ export default function WeekView() {
             </div>
           </div>
           {loading ? (
-            <div style={{ padding: 20, color: 'var(--ink-soft)' }}>Chargement…</div>
+            <Chargement />
+          ) : erreur ? (
+            <EtatErreur />
+          ) : visibleAgents.length === 0 ? (
+            <EtatVide titre="Aucun retard cette semaine." detail="Les agents arrivés en retard au moins une fois apparaissent ici." />
           ) : (
             <div className="table-scroll">
             <table>
-              <thead><tr><th>Agent</th><th>Retards cette semaine</th><th></th></tr></thead>
+              <thead><tr><th>Agent</th><th>Retards cette semaine</th><th><span className="sr-only">Alerte</span></th></tr></thead>
               <tbody>
                 {visibleAgents.map((a) => (
                   <tr key={a.agentId}>
-                    <td className="agent-link" onClick={() => navigate(`/agent/${a.agentId}`)}>
-                      <div className="agent-cell">
-                        <div className="agent-avatar">{a.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
-                        <div className="agent-name">{a.nom}</div>
-                      </div>
+                    <td>
+                      <button type="button" className="agent-link agent-cell" onClick={() => navigate(`/agent/${a.agentId}`)}>
+                        <span className="agent-avatar" aria-hidden="true">{a.nom.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span>
+                        <span className="agent-name">{a.nom}</span>
+                      </button>
                     </td>
                     <td className="mono" style={{ fontWeight: 700, color: a.seuilDepasse ? 'var(--brick)' : 'var(--ink)' }}>{a.total}</td>
                     <td>{a.seuilDepasse && <span className="badge absent_injustifie">Seuil dépassé</span>}</td>

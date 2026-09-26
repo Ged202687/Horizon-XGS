@@ -6,15 +6,21 @@ export default function TeamAgentFilter({ teams, teamFilter, onTeamChange, agent
   return (
     <div className="filter-row">
       {teams.length > 1 && (
-        <div className="pill-row">
+        <div className="pill-row" role="group" aria-label="Équipe">
           {teams.map((t) => (
-            <div key={t} className={`pill${teamFilter === t ? ' on' : ''}`} onClick={() => onTeamChange(t)}>
+            <button
+              type="button"
+              key={t}
+              className={`pill${teamFilter === t ? ' on' : ''}`}
+              aria-pressed={teamFilter === t}
+              onClick={() => onTeamChange(t)}
+            >
               {t}
-            </div>
+            </button>
           ))}
         </div>
       )}
-      <select className="select" value={agentFilter} onChange={(e) => onAgentChange(e.target.value)}>
+      <select className="select" aria-label="Agent" value={agentFilter} onChange={(e) => onAgentChange(e.target.value)}>
         <option value="">Tous les agents</option>
         {agents.map((a) => (
           <option key={a.agentId} value={a.agentId}>{a.nom}</option>
